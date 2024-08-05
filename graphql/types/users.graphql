@@ -1,0 +1,59 @@
+type Query {
+  currentUser: User
+  playerProfile: PlayerProfile
+  users: [User!]!
+  worlds: [World!]!
+  availableWorlds(userId: ID!): [World!]!
+}
+
+type Mutation {
+  addUserToWorld(userId: ID!, worldId: ID!): UserWorldAccess
+  removeUserFromWorld(userId: ID!, worldId: ID!): Boolean
+  updateUserRole(userId: ID!, roleId: ID!): UserRole
+}
+
+type Role {
+  id: ID!
+  name: String!
+}
+
+type User {
+  id: ID!
+  email: String!
+  name: String!
+  avatar_url: String
+  roles: [Role!]!
+  worlds: [World!]!
+  players: [Player!]!
+}
+
+type World {
+  id: ID!
+  name: String!
+  users: [User!]!
+}
+
+type Player {
+  id: ID!
+  name: String!
+  world: World!
+  user: User!
+}
+
+type PlayerProfile {
+  id: ID!
+  name: String!
+  world: World!
+}
+
+type UserWorldAccess {
+  user_id: ID!
+  world_id: ID!
+  user: User! # Ensure user is non-nullable
+  world: World! # Ensure world is non-nullable
+}
+
+type UserRole {
+  user: User!
+  role: Role!
+}

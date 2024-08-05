@@ -1,0 +1,1116 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema", "views"]
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["auth", "public"]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model audit_log_entries {
+  instance_id String?   @db.Uuid
+  id          String    @id @db.Uuid
+  payload     Json?     @db.Json
+  created_at  DateTime? @db.Timestamptz(6)
+  ip_address  String    @default("") @db.VarChar(64)
+
+  @@index([instance_id], map: "audit_logs_instance_id_idx")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model flow_state {
+  id                     String                @id @db.Uuid
+  user_id                String?               @db.Uuid
+  auth_code              String
+  code_challenge_method  code_challenge_method
+  code_challenge         String
+  provider_type          String
+  provider_access_token  String?
+  provider_refresh_token String?
+  created_at             DateTime?             @db.Timestamptz(6)
+  updated_at             DateTime?             @db.Timestamptz(6)
+  authentication_method  String
+  auth_code_issued_at    DateTime?             @db.Timestamptz(6)
+  saml_relay_states      saml_relay_states[]
+
+  @@index([created_at(sort: Desc)])
+  @@index([auth_code], map: "idx_auth_code")
+  @@index([user_id, authentication_method], map: "idx_user_id_auth_method")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model identities {
+  provider_id     String
+  user_id         String    @db.Uuid
+  identity_data   Json
+  provider        String
+  last_sign_in_at DateTime? @db.Timestamptz(6)
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+  email           String?   @default(dbgenerated("lower((identity_data ->> 'email'::text))"))
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  users           users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([provider_id, provider], map: "identities_provider_id_provider_unique")
+  @@index([email])
+  @@index([user_id])
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model instances {
+  id              String    @id @db.Uuid
+  uuid            String?   @db.Uuid
+  raw_base_config String?
+  created_at      DateTime? @db.Timestamptz(6)
+  updated_at      DateTime? @db.Timestamptz(6)
+
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_amr_claims {
+  session_id            String   @db.Uuid
+  created_at            DateTime @db.Timestamptz(6)
+  updated_at            DateTime @db.Timestamptz(6)
+  authentication_method String
+  id                    String   @id(map: "amr_id_pk") @db.Uuid
+  sessions              sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([session_id, authentication_method], map: "mfa_amr_claims_session_id_authentication_method_pkey")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_challenges {
+  id          String      @id @db.Uuid
+  factor_id   String      @db.Uuid
+  created_at  DateTime    @db.Timestamptz(6)
+  verified_at DateTime?   @db.Timestamptz(6)
+  ip_address  String      @db.Inet
+  mfa_factors mfa_factors @relation(fields: [factor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "mfa_challenges_auth_factor_id_fkey")
+
+  @@index([created_at(sort: Desc)], map: "mfa_challenge_created_at_idx")
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model mfa_factors {
+  id             String           @id @db.Uuid
+  user_id        String           @db.Uuid
+  friendly_name  String?
+  factor_type    factor_type
+  status         factor_status
+  created_at     DateTime         @db.Timestamptz(6)
+  updated_at     DateTime         @db.Timestamptz(6)
+  secret         String?
+  mfa_challenges mfa_challenges[]
+  users          users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, created_at], map: "factor_id_created_at_idx")
+  @@index([user_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model one_time_tokens {
+  id         String              @id @db.Uuid
+  user_id    String              @db.Uuid
+  token_type one_time_token_type
+  token_hash String
+  relates_to String
+  created_at DateTime            @default(now()) @db.Timestamp(6)
+  updated_at DateTime            @default(now()) @db.Timestamp(6)
+  users      users               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, token_type])
+  @@index([relates_to], map: "one_time_tokens_relates_to_hash_idx", type: Hash)
+  @@index([token_hash], map: "one_time_tokens_token_hash_hash_idx", type: Hash)
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model refresh_tokens {
+  instance_id String?   @db.Uuid
+  id          BigInt    @id @default(autoincrement())
+  token       String?   @unique(map: "refresh_tokens_token_unique") @db.VarChar(255)
+  user_id     String?   @db.VarChar(255)
+  revoked     Boolean?
+  created_at  DateTime? @db.Timestamptz(6)
+  updated_at  DateTime? @db.Timestamptz(6)
+  parent      String?   @db.VarChar(255)
+  session_id  String?   @db.Uuid
+  sessions    sessions? @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([instance_id])
+  @@index([instance_id, user_id])
+  @@index([parent])
+  @@index([session_id, revoked])
+  @@index([updated_at(sort: Desc)])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model saml_providers {
+  id                String        @id @db.Uuid
+  sso_provider_id   String        @db.Uuid
+  entity_id         String        @unique
+  metadata_xml      String
+  metadata_url      String?
+  attribute_mapping Json?
+  created_at        DateTime?     @db.Timestamptz(6)
+  updated_at        DateTime?     @db.Timestamptz(6)
+  name_id_format    String?
+  sso_providers     sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model saml_relay_states {
+  id              String        @id @db.Uuid
+  sso_provider_id String        @db.Uuid
+  request_id      String
+  for_email       String?
+  redirect_to     String?
+  created_at      DateTime?     @db.Timestamptz(6)
+  updated_at      DateTime?     @db.Timestamptz(6)
+  flow_state_id   String?       @db.Uuid
+  flow_state      flow_state?   @relation(fields: [flow_state_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sso_providers   sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)])
+  @@index([for_email])
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model schema_migrations {
+  version String @id @db.VarChar(255)
+
+  @@schema("auth")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sessions {
+  id             String           @id @db.Uuid
+  user_id        String           @db.Uuid
+  created_at     DateTime?        @db.Timestamptz(6)
+  updated_at     DateTime?        @db.Timestamptz(6)
+  factor_id      String?          @db.Uuid
+  aal            aal_level?
+  not_after      DateTime?        @db.Timestamptz(6)
+  refreshed_at   DateTime?        @db.Timestamp(6)
+  user_agent     String?
+  ip             String?          @db.Inet
+  tag            String?
+  mfa_amr_claims mfa_amr_claims[]
+  refresh_tokens refresh_tokens[]
+  users          users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([not_after(sort: Desc)])
+  @@index([user_id])
+  @@index([user_id, created_at], map: "user_id_created_at_idx")
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model sso_domains {
+  id              String        @id @db.Uuid
+  sso_provider_id String        @db.Uuid
+  domain          String
+  created_at      DateTime?     @db.Timestamptz(6)
+  updated_at      DateTime?     @db.Timestamptz(6)
+  sso_providers   sso_providers @relation(fields: [sso_provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([sso_provider_id])
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model sso_providers {
+  id                String              @id @db.Uuid
+  resource_id       String?
+  created_at        DateTime?           @db.Timestamptz(6)
+  updated_at        DateTime?           @db.Timestamptz(6)
+  saml_providers    saml_providers[]
+  saml_relay_states saml_relay_states[]
+  sso_domains       sso_domains[]
+
+  @@schema("auth")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model users {
+  instance_id                 String?             @db.Uuid
+  id                          String              @id @db.Uuid
+  aud                         String?             @db.VarChar(255)
+  role                        String?             @db.VarChar(255)
+  email                       String?             @db.VarChar(255)
+  encrypted_password          String?             @db.VarChar(255)
+  email_confirmed_at          DateTime?           @db.Timestamptz(6)
+  invited_at                  DateTime?           @db.Timestamptz(6)
+  confirmation_token          String?             @db.VarChar(255)
+  confirmation_sent_at        DateTime?           @db.Timestamptz(6)
+  recovery_token              String?             @db.VarChar(255)
+  recovery_sent_at            DateTime?           @db.Timestamptz(6)
+  email_change_token_new      String?             @db.VarChar(255)
+  email_change                String?             @db.VarChar(255)
+  email_change_sent_at        DateTime?           @db.Timestamptz(6)
+  last_sign_in_at             DateTime?           @db.Timestamptz(6)
+  raw_app_meta_data           Json?
+  raw_user_meta_data          Json?
+  is_super_admin              Boolean?
+  created_at                  DateTime?           @db.Timestamptz(6)
+  updated_at                  DateTime?           @db.Timestamptz(6)
+  phone                       String?             @unique
+  phone_confirmed_at          DateTime?           @db.Timestamptz(6)
+  phone_change                String?             @default("")
+  phone_change_token          String?             @default("") @db.VarChar(255)
+  phone_change_sent_at        DateTime?           @db.Timestamptz(6)
+  confirmed_at                DateTime?           @default(dbgenerated("LEAST(email_confirmed_at, phone_confirmed_at)")) @db.Timestamptz(6)
+  email_change_token_current  String?             @default("") @db.VarChar(255)
+  email_change_confirm_status Int?                @default(0) @db.SmallInt
+  banned_until                DateTime?           @db.Timestamptz(6)
+  reauthentication_token      String?             @default("") @db.VarChar(255)
+  reauthentication_sent_at    DateTime?           @db.Timestamptz(6)
+  is_sso_user                 Boolean             @default(false)
+  deleted_at                  DateTime?           @db.Timestamptz(6)
+  is_anonymous                Boolean             @default(false)
+  identities                  identities[]
+  mfa_factors                 mfa_factors[]
+  one_time_tokens             one_time_tokens[]
+  sessions                    sessions[]
+  user_players                user_players[]
+  user_roles                  user_roles[]
+  user_world_access           user_world_access[]
+
+  @@index([instance_id])
+  @@index([is_anonymous])
+  @@schema("auth")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model activity_types {
+  activity_type_id          String                      @id @db.VarChar(64)
+  fv_activity_type_id       Int?
+  activity_type_name        String                      @db.VarChar(64)
+  areas                     areas[]
+  creature_activity_records creature_activity_records[]
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model areas {
+  area_id                                                                                             String                       @id @db.VarChar(64)
+  fv_area_id                                                                                          Int?
+  area_name                                                                                           String                       @db.VarChar(64)
+  area_x                                                                                              Float?
+  area_y                                                                                              Float?
+  island_id                                                                                           String?                      @db.VarChar(64)
+  activity_type_id                                                                                    String?                      @db.VarChar(64)
+  activity_types                                                                                      activity_types?              @relation(fields: [activity_type_id], references: [activity_type_id], onDelete: NoAction, onUpdate: NoAction)
+  islands                                                                                             islands?                     @relation(fields: [island_id], references: [island_id], onDelete: NoAction, onUpdate: NoAction)
+  creature_activity_records                                                                           creature_activity_records[]
+  creature_direction_actions_creature_direction_actions_creature_direction_action_from_area_idToareas creature_direction_actions[] @relation("creature_direction_actions_creature_direction_action_from_area_idToareas")
+  creature_direction_actions_creature_direction_actions_creature_direction_action_to_area_idToareas   creature_direction_actions[] @relation("creature_direction_actions_creature_direction_action_to_area_idToareas")
+  creature_state_records                                                                              creature_state_records[]
+  player_location_records                                                                             player_location_records[]
+  plots                                                                                               plots[]
+
+  @@schema("public")
+}
+
+model colors {
+  color_id    String      @id @db.VarChar(64)
+  fv_color_id Int?
+  color_name  String      @db.VarChar(64)
+  creatures   creatures[]
+
+  @@schema("public")
+}
+
+model crafting_actions {
+  crafting_action_id                                            String      @id
+  fv_crafting_action_id                                         Int?
+  crafting_action_time                                          DateTime    @db.Timestamp(6)
+  crafting_action_x                                             Float
+  crafting_action_y                                             Float
+  world_id                                                      String?
+  game_time_id                                                  String?
+  player_id                                                     String?
+  ingredient1_resource_id                                       String?
+  ingredient2_resource_id                                       String?
+  item_id                                                       String?
+  game_times                                                    game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  resources_crafting_actions_ingredient1_resource_idToresources resources?  @relation("crafting_actions_ingredient1_resource_idToresources", fields: [ingredient1_resource_id], references: [resource_id], onDelete: NoAction, onUpdate: NoAction)
+  resources_crafting_actions_ingredient2_resource_idToresources resources?  @relation("crafting_actions_ingredient2_resource_idToresources", fields: [ingredient2_resource_id], references: [resource_id], onDelete: NoAction, onUpdate: NoAction)
+  items                                                         items?      @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  players                                                       players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                                        worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model creature_activity_records {
+  creature_activity_record_id            String          @id
+  fv_creature_activity_record_id         Int?
+  creature_activity_record_time          DateTime        @db.Timestamp(6)
+  creature_activity_record_health_change Float
+  creature_activity_record_mood_change   Float
+  creature_activity_record_social_change Float
+  world_id                               String?
+  creature_id                            String?
+  game_time_id                           String?
+  area_id                                String?
+  activity_type_id                       String?
+  activity_types                         activity_types? @relation(fields: [activity_type_id], references: [activity_type_id], onDelete: NoAction, onUpdate: NoAction)
+  areas                                  areas?          @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  creatures                              creatures?      @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                             game_times?     @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                 worlds?         @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model creature_direction_actions {
+  creature_direction_action_id                                                   String      @id
+  fv_creature_direction_action_id                                                Int?
+  creature_direction_action_time                                                 DateTime    @db.Timestamp(6)
+  creature_direction_action_from_area_id                                         String?
+  creature_direction_action_to_area_id                                           String?
+  world_id                                                                       String?
+  game_time_id                                                                   String?
+  player_id                                                                      String?
+  creature_id                                                                    String?
+  areas_creature_direction_actions_creature_direction_action_from_area_idToareas areas?      @relation("creature_direction_actions_creature_direction_action_from_area_idToareas", fields: [creature_direction_action_from_area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  areas_creature_direction_actions_creature_direction_action_to_area_idToareas   areas?      @relation("creature_direction_actions_creature_direction_action_to_area_idToareas", fields: [creature_direction_action_to_area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  creatures                                                                      creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                                                                     game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                                                                        players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                                                         worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model creature_state_records {
+  creature_state_record_id     String     @id
+  fv_creature_state_record_id  Int?
+  creature_state_record_time   DateTime   @db.Timestamp(6)
+  creature_state_record_health Float?
+  creature_state_record_mood   Float?
+  creature_state_record_social Float?
+  world_id                     String?
+  creature_id                  String?
+  area_id                      String?
+  areas                        areas?     @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  creatures                    creatures? @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                       worlds?    @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model creature_types {
+  creature_type_id    String      @id @db.VarChar(64)
+  fv_creature_type_id Int?
+  creature_type_name  String      @db.VarChar(64)
+  creatures           creatures[]
+
+  @@schema("public")
+}
+
+model creatures {
+  creature_id                String                       @id
+  fv_creature_id             String?
+  world_id                   String?
+  creature_name              String
+  creature_created_date      DateTime                     @db.Timestamp(6)
+  faction_id                 String?
+  color_id                   String?
+  creature_type_id           String?
+  creature_activity_records  creature_activity_records[]
+  creature_direction_actions creature_direction_actions[]
+  creature_state_records     creature_state_records[]
+  colors                     colors?                      @relation(fields: [color_id], references: [color_id], onDelete: NoAction, onUpdate: NoAction)
+  creature_types             creature_types?              @relation(fields: [creature_type_id], references: [creature_type_id], onDelete: NoAction, onUpdate: NoAction)
+  factions                   factions?                    @relation(fields: [faction_id], references: [faction_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                     worlds?                      @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+  diner_review_actions       diner_review_actions[]
+  diner_seating_actions      diner_seating_actions[]
+  friendship_records         friendship_records[]
+  giving_actions             giving_actions[]
+  patch_tending_actions      patch_tending_actions[]
+
+  @@schema("public")
+}
+
+model data_actions {
+  data_action_id                                             String       @id
+  fv_data_action_id                                          Int?
+  data_action_time                                           DateTime     @db.Timestamp(6)
+  data_action_type                                           String
+  data_action_table_name                                     String
+  data_action_axis                                           String?
+  data_action_variable                                       String?
+  data_action_source                                         String?
+  world_id                                                   String?
+  game_time_id                                               String?
+  player_id                                                  String?
+  data_table_id                                              String?
+  merged_data_table_id                                       String?
+  data_tables_data_actions_data_table_idTodata_tables        data_tables? @relation("data_actions_data_table_idTodata_tables", fields: [data_table_id], references: [data_table_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                                                 game_times?  @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  data_tables_data_actions_merged_data_table_idTodata_tables data_tables? @relation("data_actions_merged_data_table_idTodata_tables", fields: [merged_data_table_id], references: [data_table_id], onDelete: NoAction, onUpdate: NoAction)
+  players                                                    players?     @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                                     worlds?      @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model data_tables {
+  data_table_id                                               String         @id
+  fv_data_table_id                                            String?
+  data_table_name                                             String
+  world_id                                                    String?
+  data_actions_data_actions_data_table_idTodata_tables        data_actions[] @relation("data_actions_data_table_idTodata_tables")
+  data_actions_data_actions_merged_data_table_idTodata_tables data_actions[] @relation("data_actions_merged_data_table_idTodata_tables")
+  worlds                                                      worlds?        @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model days {
+  day_id          String            @id
+  fv_day_id       Int?
+  day_number      Int?              @unique
+  day_name        String
+  game_times      game_times[]
+  weather_records weather_records[]
+
+  @@schema("public")
+}
+
+model diner_review_actions {
+  diner_review_action_id    String      @id
+  fv_diner_review_action_id Int?
+  diner_review_action_time  DateTime    @db.Timestamp(6)
+  diner_review_action_score Float
+  world_id                  String?
+  game_time_id              String?
+  creature_id               String?
+  item_id                   String?
+  creatures                 creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  items                     items?      @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                    worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model diner_seating_actions {
+  diner_seating_action_id           String      @id
+  fv_diner_seating_action_id        Int?
+  diner_seating_action_time         DateTime    @db.Timestamp(6)
+  diner_seating_action_seating_area Int
+  diner_seating_action_seat         Int
+  world_id                          String?
+  game_time_id                      String?
+  player_id                         String?
+  creature_id                       String?
+  creatures                         creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                        game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                           players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                            worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model factions {
+  faction_id    String      @id @db.VarChar(64)
+  fv_faction_id Int?
+  faction_name  String      @db.VarChar(64)
+  creatures     creatures[]
+
+  @@schema("public")
+}
+
+model foraging_actions {
+  foraging_action_id    String      @id
+  fv_foraging_action_id Int?
+  foraging_action_time  DateTime    @db.Timestamp(6)
+  foraging_action_x     Float
+  foraging_action_y     Float
+  world_id              String?
+  game_time_id          String?
+  player_id             String?
+  patch_id              String?
+  resource_id           String?
+  game_times            game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  patches               patches?    @relation(fields: [patch_id], references: [patch_id], onDelete: NoAction, onUpdate: NoAction)
+  players               players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  resources             resources?  @relation(fields: [resource_id], references: [resource_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model friendship_records {
+  friendship_record_id    String      @id
+  fv_friendship_record_id Int?
+  friendship_record_time  DateTime    @db.Timestamp(6)
+  friendship_level        Float
+  world_id                String?
+  game_time_id            String?
+  player_id               String?
+  creature_id             String?
+  creatures               creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times              game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                 players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                  worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model game_times {
+  game_time_id               String                       @id
+  fv_game_time_id            Int?
+  game_time_number           String?                      @unique
+  day_id                     String?
+  time_of_day_id             String?
+  season_id                  String?
+  crafting_actions           crafting_actions[]
+  creature_activity_records  creature_activity_records[]
+  creature_direction_actions creature_direction_actions[]
+  data_actions               data_actions[]
+  diner_review_actions       diner_review_actions[]
+  diner_seating_actions      diner_seating_actions[]
+  foraging_actions           foraging_actions[]
+  friendship_records         friendship_records[]
+  days                       days?                        @relation(fields: [day_id], references: [day_id], onDelete: NoAction, onUpdate: NoAction)
+  seasons                    seasons?                     @relation(fields: [season_id], references: [season_id], onDelete: NoAction, onUpdate: NoAction)
+  time_of_days               time_of_days?                @relation(fields: [time_of_day_id], references: [time_of_day_id], onDelete: NoAction, onUpdate: NoAction)
+  giving_actions             giving_actions[]
+  inventory_actions          inventory_actions[]
+  patch_actions              patch_actions[]
+  patch_health_records       patch_health_records[]
+  patch_tending_actions      patch_tending_actions[]
+  player_location_records    player_location_records[]
+
+  @@schema("public")
+}
+
+model giving_actions {
+  giving_action_id            String      @id
+  fv_giving_action_id         Int?
+  giving_action_time          DateTime    @db.Timestamp(6)
+  giving_action_x             Float
+  giving_action_y             Float
+  giving_action_health_effect Float
+  giving_action_mood_effect   Float
+  giving_action_social_effect Float
+  world_id                    String?
+  game_time_id                String?
+  player_id                   String?
+  creature_id                 String?
+  item_id                     String?
+  creatures                   creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                  game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  items                       items?      @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  players                     players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                      worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model inventories {
+  inventory_id      String              @id @db.VarChar(64)
+  fv_inventory_id   String?             @db.VarChar(64)
+  inventory_name    String?             @db.VarChar(64)
+  inventory_actions inventory_actions[]
+
+  @@schema("public")
+}
+
+model inventory_actions {
+  inventory_action_id    String       @id
+  fv_inventory_action_id Int?
+  inventory_action_time  DateTime     @db.Timestamp(6)
+  inventory_action_type  String
+  inventory_action_x     Float
+  inventory_action_y     Float
+  world_id               String?
+  game_time_id           String?
+  player_id              String?
+  item_id                String?
+  resource_id            String?
+  inventory_id           String?
+  game_times             game_times?  @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  inventories            inventories? @relation(fields: [inventory_id], references: [inventory_id], onDelete: NoAction, onUpdate: NoAction)
+  items                  items?       @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  players                players?     @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  resources              resources?   @relation(fields: [resource_id], references: [resource_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                 worlds?      @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model islands {
+  island_id       String            @id @db.VarChar(64)
+  fv_island_id    Int?
+  island_name     String            @db.VarChar(64)
+  areas           areas[]
+  weather_records weather_records[]
+
+  @@schema("public")
+}
+
+model item_categories {
+  item_category_id    String           @id @db.VarChar(64)
+  fv_item_category_id Int?
+  item_category_name  String           @db.VarChar(64)
+  item_types          item_types[]
+  item_varieties      item_varieties[]
+
+  @@schema("public")
+}
+
+model item_types {
+  item_type_id     String           @id @db.VarChar(64)
+  fv_item_type_id  Int?
+  item_type_name   String           @db.VarChar(64)
+  item_category_id String?          @db.VarChar(64)
+  item_variety_id  String?          @db.VarChar(64)
+  item_categories  item_categories? @relation(fields: [item_category_id], references: [item_category_id], onDelete: NoAction, onUpdate: NoAction)
+  item_varieties   item_varieties?  @relation(fields: [item_variety_id], references: [item_variety_id], onDelete: NoAction, onUpdate: NoAction)
+  items            items[]
+
+  @@schema("public")
+}
+
+model item_varieties {
+  item_variety_id    String           @id @db.VarChar(64)
+  fv_item_variety_id Int?
+  item_variety_name  String           @db.VarChar(64)
+  item_category_id   String?          @db.VarChar(64)
+  item_types         item_types[]
+  item_categories    item_categories? @relation(fields: [item_category_id], references: [item_category_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model items {
+  item_id              String                 @id
+  fv_item_id           Int?
+  world_id             String?
+  item_created_date    DateTime               @db.Timestamp(6)
+  item_quality         Int
+  item_type_id         String?
+  crafting_actions     crafting_actions[]
+  diner_review_actions diner_review_actions[]
+  giving_actions       giving_actions[]
+  inventory_actions    inventory_actions[]
+  item_types           item_types?            @relation(fields: [item_type_id], references: [item_type_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds               worlds?                @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+  patch_actions        patch_actions[]
+
+  @@schema("public")
+}
+
+model patch_actions {
+  patch_action_id               String      @id
+  fv_patch_action_id            Int?
+  patch_action_time             DateTime    @db.Timestamp(6)
+  patch_action_growth_effect    Float
+  patch_action_shadow_effect    Float
+  patch_action_light_effect     Float
+  patch_action_stability_effect Float
+  world_id                      String?
+  game_time_id                  String?
+  player_id                     String?
+  patch_id                      String?
+  item_id                       String?
+  game_times                    game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  items                         items?      @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  patches                       patches?    @relation(fields: [patch_id], references: [patch_id], onDelete: NoAction, onUpdate: NoAction)
+  players                       players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                        worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model patch_health_records {
+  patch_health_record_id              String      @id
+  fv_patch_health_record_id           Int?
+  patch_health_record_time            DateTime    @db.Timestamp(6)
+  patch_health_record_growth_level    Float
+  patch_health_record_light_level     Float
+  patch_health_record_shadow_level    Float
+  patch_health_record_stability_level Float
+  world_id                            String?
+  patch_id                            String?
+  game_time_id                        String?
+  game_times                          game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  patches                             patches?    @relation(fields: [patch_id], references: [patch_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                              worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model patch_tending_actions {
+  patch_tending_action_id               String      @id
+  fv_patch_tending_action_id            Int?
+  patch_tending_action_time             DateTime    @db.Timestamp(6)
+  patch_tending_action_growth_effect    Float
+  patch_tending_action_shadow_effect    Float
+  patch_tending_action_light_effect     Float
+  patch_tending_action_stability_effect Float
+  world_id                              String?
+  game_time_id                          String?
+  player_id                             String?
+  creature_id                           String?
+  patch_id                              String?
+  creatures                             creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                            game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  patches                               patches?    @relation(fields: [patch_id], references: [patch_id], onDelete: NoAction, onUpdate: NoAction)
+  players                               players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model patches {
+  patch_id              String                  @id @db.VarChar(64)
+  fv_patch_id           String?                 @db.VarChar(64)
+  plot_id               String?                 @db.VarChar(64)
+  foraging_actions      foraging_actions[]
+  patch_actions         patch_actions[]
+  patch_health_records  patch_health_records[]
+  patch_tending_actions patch_tending_actions[]
+  plots                 plots?                  @relation(fields: [plot_id], references: [plot_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model player_location_records {
+  player_location_record_id    String      @id
+  fv_player_location_record_id Int?
+  player_location_record_time  DateTime    @db.Timestamp(6)
+  player_location_record_x     Float
+  player_location_record_y     Float
+  world_id                     String?
+  game_time_id                 String?
+  player_id                    String?
+  area_id                      String?
+  areas                        areas?      @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                   game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                      players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                       worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model players {
+  player_id                  String                       @id
+  fv_player_id               Int?
+  world_id                   String?
+  player_name                String
+  crafting_actions           crafting_actions[]
+  creature_direction_actions creature_direction_actions[]
+  data_actions               data_actions[]
+  diner_seating_actions      diner_seating_actions[]
+  foraging_actions           foraging_actions[]
+  friendship_records         friendship_records[]
+  giving_actions             giving_actions[]
+  inventory_actions          inventory_actions[]
+  patch_actions              patch_actions[]
+  patch_tending_actions      patch_tending_actions[]
+  player_location_records    player_location_records[]
+  worlds                     worlds?                      @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+  user_players               user_players[]
+
+  @@schema("public")
+}
+
+model plots {
+  plot_id    String    @id @db.VarChar(64)
+  fv_plot_id String?   @db.VarChar(64)
+  area_id    String?   @db.VarChar(64)
+  patches    patches[]
+  areas      areas?    @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model resource_categories {
+  resource_category_id    String           @id @db.VarChar(64)
+  fv_resource_category_id Int?
+  resource_category_name  String           @db.VarChar(64)
+  resource_types          resource_types[]
+
+  @@schema("public")
+}
+
+model resource_types {
+  resource_type_id     String               @id @db.VarChar(64)
+  fv_resource_type_id  Int?
+  resource_type_name   String               @db.VarChar(64)
+  resource_category_id String?              @db.VarChar(64)
+  resource_variety_id  String?              @db.VarChar(64)
+  resource_categories  resource_categories? @relation(fields: [resource_category_id], references: [resource_category_id], onDelete: NoAction, onUpdate: NoAction)
+  resource_varieties   resource_varieties?  @relation(fields: [resource_variety_id], references: [resource_variety_id], onDelete: NoAction, onUpdate: NoAction)
+  resources            resources[]
+
+  @@schema("public")
+}
+
+model resource_varieties {
+  resource_variety_id    String           @id @db.VarChar(64)
+  fv_resource_variety_id Int?
+  resource_variety_name  String           @db.VarChar(64)
+  resource_types         resource_types[]
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model resources {
+  resource_id                                                          String              @id
+  fv_resource_id                                                       Int?
+  world_id                                                             String?
+  resource_created_date                                                DateTime            @db.Timestamp(6)
+  resource_quality                                                     Int
+  resource_type_id                                                     String?
+  crafting_actions_crafting_actions_ingredient1_resource_idToresources crafting_actions[]  @relation("crafting_actions_ingredient1_resource_idToresources")
+  crafting_actions_crafting_actions_ingredient2_resource_idToresources crafting_actions[]  @relation("crafting_actions_ingredient2_resource_idToresources")
+  foraging_actions                                                     foraging_actions[]
+  inventory_actions                                                    inventory_actions[]
+  resource_types                                                       resource_types?     @relation(fields: [resource_type_id], references: [resource_type_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                                               worlds?             @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model roles {
+  id         Int          @id @default(autoincrement())
+  name       String       @unique
+  user_roles user_roles[]
+
+  @@schema("public")
+}
+
+model seasons {
+  season_id    String       @id
+  fv_season_id Int?
+  season_name  String
+  game_times   game_times[]
+
+  @@schema("public")
+}
+
+model time_of_days {
+  time_of_day_id    String       @id
+  fv_time_of_day_id Int?
+  time_of_day_name  String
+  game_times        game_times[]
+
+  @@schema("public")
+}
+
+model user_players {
+  user_id   String  @db.Uuid
+  player_id String
+  players   players @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  users     users   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([user_id, player_id])
+  @@schema("public")
+}
+
+model user_roles {
+  user_id String @db.Uuid
+  role_id Int
+  roles   roles  @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users   users  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([user_id, role_id])
+  @@schema("public")
+}
+
+model user_world_access {
+  user_id  String @db.Uuid
+  world_id String
+  users    users  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  worlds   worlds @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([user_id, world_id])
+  @@schema("public")
+}
+
+model weather_records {
+  weather_record_id        String   @id
+  fv_weather_record_id     Int?
+  weather_record_time      DateTime @db.Timestamp(6)
+  weather_record_sun_type  String?
+  weather_record_rain_type String?
+  world_id                 String?
+  day_id                   String?
+  island_id                String?
+  days                     days?    @relation(fields: [day_id], references: [day_id], onDelete: NoAction, onUpdate: NoAction)
+  islands                  islands? @relation(fields: [island_id], references: [island_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                   worlds?  @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model worlds {
+  world_id                   String                       @id
+  fv_world_id                String?
+  world_created_date         DateTime                     @db.Timestamp(6)
+  world_name                 String
+  crafting_actions           crafting_actions[]
+  creature_activity_records  creature_activity_records[]
+  creature_direction_actions creature_direction_actions[]
+  creature_state_records     creature_state_records[]
+  creatures                  creatures[]
+  data_actions               data_actions[]
+  data_tables                data_tables[]
+  diner_review_actions       diner_review_actions[]
+  diner_seating_actions      diner_seating_actions[]
+  foraging_actions           foraging_actions[]
+  friendship_records         friendship_records[]
+  giving_actions             giving_actions[]
+  inventory_actions          inventory_actions[]
+  items                      items[]
+  patch_actions              patch_actions[]
+  patch_health_records       patch_health_records[]
+  patch_tending_actions      patch_tending_actions[]
+  player_location_records    player_location_records[]
+  players                    players[]
+  resources                  resources[]
+  user_world_access          user_world_access[]
+  weather_records            weather_records[]
+
+  @@schema("public")
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view vw_game_times {
+  game_time_id     String?
+  game_time_number String?
+  day_id           String?
+  day_number       Int?
+  day_name         String?
+  time_of_day_id   String?
+  time_of_day_name String?
+  season_id        String?
+  season_name      String?
+
+  @@ignore
+  @@schema("public")
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view vw_resources {
+  resource_id            String?
+  world_id               String?
+  resource_created_date  DateTime? @db.Timestamp(6)
+  resource_quality       Int?
+  resource_type_id       String?   @db.VarChar(64)
+  resource_type_name     String?   @db.VarChar(64)
+  resource_category_id   String?   @db.VarChar(64)
+  resource_category_name String?   @db.VarChar(64)
+  resource_variety_id    String?   @db.VarChar(64)
+  resource_variety_name  String?   @db.VarChar(64)
+
+  @@ignore
+  @@schema("public")
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view vw_creatures {
+  creature_id      String?
+  creature_name    String?
+  creature_faction String?
+  creature_color   String? @db.VarChar(64)
+  creature_type    String? @db.VarChar(64)
+  faction_name     String? @db.VarChar(64)
+
+  @@ignore
+  @@schema("public")
+}
+
+enum aal_level {
+  aal1
+  aal2
+  aal3
+
+  @@schema("auth")
+}
+
+enum code_challenge_method {
+  s256
+  plain
+
+  @@schema("auth")
+}
+
+enum factor_status {
+  unverified
+  verified
+
+  @@schema("auth")
+}
+
+enum factor_type {
+  totp
+  webauthn
+
+  @@schema("auth")
+}
+
+enum one_time_token_type {
+  confirmation_token
+  reauthentication_token
+  recovery_token
+  email_change_token_new
+  email_change_token_current
+  phone_change_token
+
+  @@schema("auth")
+}
