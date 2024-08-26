@@ -1,15 +1,47 @@
+directive @auth(role: String!) on FIELD_DEFINITION
+
+# Main Query Type
 type Query {
-  currentUser: User
-  playerProfile: PlayerProfile
-  users: [User!]!
-  worlds: [World!]!
-  availableWorlds(userId: ID!): [World!]!
+  currentUser: User # Fetch the currently logged-in user
+  userPlayers: [Player!]! # Fetch players associated with the current user
+  users: [User!]! @auth(role: "researcher") # Fetch all users (admin only)
+  worlds: [World!]! @auth(role: "researcher")
 }
 
+# Admin-Level Mutations
 type Mutation {
-  addUserToWorld(userId: ID!, worldId: ID!): UserWorldAccess
-  removeUserFromWorld(userId: ID!, worldId: ID!): Boolean
-  updateUserRole(userId: ID!, roleId: ID!): UserRole
+  createPlayer(playerName: String!, worldId: ID!): Player! # Create a new player linked to the current user
+  linkPlayerWithUser(playerId: ID!, userId: ID!): UserPlayerAssociation # Link a player with the current user
+  inviteUserToWorld(input: InviteUserToWorldInput!): UserWorldAccess # @auth(role: "researcher")
+  removeUserFromWorld(input: RemoveUserFromWorldInput!): Boolean # @auth(role: "researcher")
+  updateUserRole(input: UpdateUserRoleInput!): UserRole # @auth(role: "researcher")
+}
+
+# Input Types for Mutations
+input InviteUserToWorldInput {
+  userId: ID!
+  worldId: ID!
+}
+
+input RemoveUserFromWorldInput {
+  userId: ID!
+  worldId: ID!
+}
+
+input UpdateUserRoleInput {
+  userId: ID!
+  roleId: ID!
+}
+
+# Type Definitions
+type User {
+  id: ID!
+  email: String!
+  name: String!
+  avatar_url: String
+  roles: [Role!]!
+  players: [Player!]!
+  worlds: [World!]!
 }
 
 type Role {
@@ -17,40 +49,29 @@ type Role {
   name: String!
 }
 
-type User {
-  id: ID!
-  email: String!
-  name: String!
-  avatar_url: String
-  roles: [Role!]!
-  worlds: [World!]!
-  players: [Player!]!
-}
-
 type World {
   id: ID!
   name: String!
-  users: [User!]!
+  players: [Player!]!
 }
 
 type Player {
   id: ID!
   name: String!
   world: World!
-  user: User!
+  user: User
 }
 
-type PlayerProfile {
-  id: ID!
-  name: String!
-  world: World!
+type UserPlayerAssociation {
+  player_id: ID!
+  user_id: ID!
 }
 
 type UserWorldAccess {
   user_id: ID!
   world_id: ID!
-  user: User! # Ensure user is non-nullable
-  world: World! # Ensure world is non-nullable
+  user: User!
+  world: World!
 }
 
 type UserRole {
