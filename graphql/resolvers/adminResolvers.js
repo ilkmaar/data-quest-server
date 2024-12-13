@@ -3,24 +3,10 @@ import {
   UserInputError,
   ApolloError,
 } from "apollo-server-express";
-
-const handleErrors = async (fn) => {
-  try {
-    return await fn();
-  } catch (error) {
-    console.error("Error:", error);
-    throw new ApolloError("An error occurred while processing the request.");
-  }
-};
+import { ensureAuthenticated, handleErrors } from "./utils.js";
 
 const generatePlayerId = () => {
   return Math.floor(Math.random() * 10000000);
-};
-
-const ensureAuthenticated = (userId) => {
-  if (!userId) {
-    throw new AuthenticationError("You must be logged in.");
-  }
 };
 
 const fetchSingleRecord = async (prismaMethod, query, errorMessage) => {
@@ -31,7 +17,7 @@ const fetchSingleRecord = async (prismaMethod, query, errorMessage) => {
   return record;
 };
 
-const resolvers = {
+const adminResolvers = {
   Query: {
     worlds: (_, __, { prisma }) => {
       return handleErrors(() =>
@@ -192,4 +178,4 @@ const resolvers = {
   },
 };
 
-export default resolvers;
+export default adminResolvers;

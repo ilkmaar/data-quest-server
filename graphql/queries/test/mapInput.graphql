@@ -1,0 +1,19 @@
+type Query {
+  worlds: [World!]!
+  world(id: ID!): World
+  island(id: ID!): Island
+  area(id: ID!): Area
+  mapNotes(level: String!, areaId: String!): [MapNote!]!
+}
+
+type Mutation {
+  addMapNote(input: AddMapNoteInput!): MapNote!
+}
+
+input AddMapNoteInput {
+  content: String!
+  x: Float!
+  y: Float!
+  level: String!
+  area_id: String!
+}

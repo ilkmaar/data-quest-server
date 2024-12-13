@@ -1,0 +1,93 @@
+type Query {
+  # worlds: [World!]!
+  # world(id: ID!): World
+
+  # players: [Player!]!
+  # player(id: ID!): Player
+
+  # days: [Day!]!
+  # day(id: ID!): Day
+
+  # seasons: [Season!]!
+  # season(id: ID!): Season
+
+  # time_of_days: [TimeOfDay!]!
+  # time_of_day(id: ID!): TimeOfDay
+
+  # game_times: [GameTime!]!
+  # game_time(id: ID!): GameTime
+
+  # activity_types: [ActivityType!]!
+  # activity_type(id: ID!): ActivityType
+
+  # creatures: [Creature!]!
+  # creature(id: ID!): Creature
+
+  # resources: [Resource!]!
+  # resource(id: ID!): Resource
+
+  # items: [Item!]!
+  # item(id: ID!): Item
+
+  # inventories: [Inventory!]!
+  # inventory(id: ID!): Inventory
+
+  # data_tables: [DataTable!]!
+
+  # weather_records: [WeatherRecord!]!
+  # weather_record(id: ID!): WeatherRecord
+
+  # patch_health_records: [PatchHealth!]!
+  # patch_health_record(id: ID!): PatchHealth
+
+  # player_location_records: [PlayerLocation!]!
+  # player_location_record(id: ID!): PlayerLocation
+
+  # activities: [CreatureActivity!]!
+  # creature_activity_record(id: ID!): CreatureActivity
+
+  # creature_direction_actions: [CreatureDirection!]!
+  # creature_direction_action(id: ID!): CreatureDirection
+
+  # creature_stats: [CreatureStats!]!
+  # creature_stat(id: ID!): CreatureStats
+
+  # friendship_records: [Friendship!]!
+  # friendship_record(id: ID!): Friendship
+
+  # foraging: [Foraging!]!
+  # foraging_action(id: ID!): Foraging
+  # myForagings: [Foraging!]!
+  # Foraging: Foraging
+
+  # crafting: [Crafting!]!
+  # crafting_action(id: ID!): Crafting
+  # Crafting: Crafting
+
+  # giving: [Giving!]!
+  # giving_action(id: ID!): Giving
+  # Giving: Giving
+
+  # transactions: [Transaction!]!
+  # inventory_action(id: ID!): Transaction
+
+  # data_actions: [DataAction!]!
+  # data_action(id: ID!): DataAction
+
+  # seatings: [DinerSeating!]!
+  # diner_seating_action(id: ID!): DinerSeating
+
+  # diner_reviews: [DinerReview!]!
+  # diner_review_action(id: ID!): DinerReview
+
+  # patch_actions: [Treating!]!
+  # patch_action(id: ID!): Treating
+
+  # patch_tending: [Tending!]!
+  # patch_tending_action(id: ID!): Tending
+
+  # colors: [Color!]!
+  # area(id: ID!): Area
+  # patch(id: ID!): Patch
+  # dinerReviews: [DinerReview!]!
+}

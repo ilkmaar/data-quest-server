@@ -1,0 +1,31 @@
+extend type Query {
+  # # Creature-focused queries
+  # topCreaturesByStats(
+  #   stat: StatType!
+  #   limit: Int!
+  #   worldId: ID!
+  # ): [CreatureStatsRanking!]!
+  
+  # bottomCreaturesByStats(
+  #   stat: StatType!
+  #   limit: Int!
+  #   worldId: ID!
+  # ): [CreatureStatsRanking!]!
+  
+  # creatureStatsHistory(
+  #   creatureId: ID!
+  #   startTime: DateTime!
+  #   endTime: DateTime!
+  # ): [CreatureStats!]!
+
+  # # Faction-focused queries
+  # factionAggregateStats(worldId: ID!): [FactionAggregateStats!]!
+
+  # # Time-based analysis
+  # statTrendAnalysis(
+  #   worldId: ID!
+  #   startTime: DateTime
+  #   endTime: DateTime
+  #   interval: TimeInterval!
+  # ): [StatTrend!]!
+}

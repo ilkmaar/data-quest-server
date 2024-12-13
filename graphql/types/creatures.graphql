@@ -1,0 +1,48 @@
+type CreatureAction implements Action {
+  id: ID!
+  time: GameTime
+  location: Location
+  creature: Creature
+}
+
+type DinerReview implements Action {
+  id: ID!
+  time: GameTime
+  location: Location
+  creature: Creature
+  score: Float!
+  item: Item
+}
+
+type Tending implements Action {
+  id: ID!
+  time: GameTime
+  location: Location
+  creature: Creature
+  player: Player
+  patch: Patch
+  effect: EnergyEffect
+}
+
+type CreatureStats implements Entity {
+  id: ID!
+  time: GameTime
+  creature: Creature
+  stats: Stats
+}
+
+type CreatureLocation implements Entity {
+  id: ID!
+  time: GameTime
+  creature: Creature
+  location: Location
+}
+
+type CreatureActivity implements Entity {
+  id: ID!
+  time: GameTime
+  creature: Creature
+  type: ActivityType
+  effect: StatsEffect
+  area: Area
+}

@@ -1,0 +1,80 @@
+type World implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  players: [Player!]!
+}
+
+type Player implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  world: World
+  inventory: Inventory
+  foraging: [Foraging!]!
+  crafting: [Crafting!]!
+  giving: [Giving!]!
+  treating: [Treating!]!
+  tending: [Tending!]!
+  transactions: [Transaction!]!
+  locations: [PlayerLocation!]!
+  friendships: [Friendship!]!
+  creature_direction_actions: [CreatureDirection!]!
+}
+
+type Faction implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  creatures: [Creature!]!
+}
+
+type Creature implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  faction: Faction
+  color: Color
+  creature_type: CreatureType
+  patch_tending: [Tending!]!
+  diner_reviews: [DinerReview!]!
+  creature_direction_actions: [CreatureDirection!]!
+  giving: [Giving!]!
+  stats_records: [CreatureStats!]!
+  location_records: [CreatureLocation!]!
+  activity_records: [CreatureActivity!]!
+  friendship_records: [Friendship!]!
+}
+
+type Resource implements Entity {
+  id: ID!
+  quality: Int!
+  type: ResourceType
+  category: ResourceCategory
+  variety: ResourceVariety
+  foraging: [Foraging!]!
+  crafting: [Crafting!]!
+  transactions: [Transaction!]!
+}
+
+type Item implements Entity {
+  id: ID!
+  quality: Int!
+  type: ItemType
+  category: ItemCategory
+  variety: ItemVariety
+  crafting: [Crafting!]!
+  giving: [Giving!]!
+  diner_reviews: [DinerReview!]!
+  transactions: [Transaction!]!
+  patch_actions: [Treating!]!
+}
+
+type Inventory implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  transactions: [Transaction!]!
+}
+
+type DataTable implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  data_actions: [DataAction!]!
+  data_actions_merged_data_table: [DataAction!]!
+}

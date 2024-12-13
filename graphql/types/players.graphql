@@ -1,0 +1,117 @@
+type Foraging implements PlayerAction & Action {
+  id: ID!
+  time: GameTime
+  location: Location
+  player: Player
+  resource: Resource
+  patch: Patch
+}
+
+type Crafting implements PlayerAction {
+  id: ID!
+  time: GameTime
+  location: Location
+  player: Player
+  ingredients: [Resource!]!
+  item: Item
+}
+
+type Giving implements PlayerAction {
+  id: ID!
+  time: GameTime
+  location: Location
+  player: Player
+  creature: Creature
+  item: Item
+  effect: StatsEffect
+}
+
+type Treating implements PlayerAction {
+  id: ID!
+  time: GameTime
+  location: Location
+  player: Player
+  patch: Patch
+  item: Item
+  effect: EnergyEffect
+}
+
+type Transaction implements PlayerAction {
+  id: ID!
+  time: GameTime
+  location: Location
+  player: Player
+  inventory: Inventory
+  item: Item
+  resource: Resource
+  type: String!
+}
+
+type CreatureDirection {
+  creature_direction_action_id: ID!
+  creature_direction_action_time: String!
+  world: World
+  game_time: GameTime
+  player: Player
+  creature: Creature
+  area_from: Area
+  area_to: Area
+}
+
+type DataAction implements PlayerAction {
+  id: ID!
+  time: GameTime
+  location: Location
+  player: Player
+  data_action_type: String!
+  data_action_table_name: String!
+  data_action_axis: String
+  data_action_variable: String
+  data_action_source: String
+  data_table: DataTable
+  merged_data_table: DataTable
+}
+
+type DinerSeating implements PlayerAction {
+  id: ID!
+  time: GameTime
+  location: Location
+  player: Player
+  creature: Creature
+  area: Int!
+  seat: Int!
+}
+
+type PlayerLocation implements Record {
+  id: ID!
+  time: GameTime
+  player: Player
+  location: Location
+}
+
+type Friendship implements Record {
+  id: ID!
+  time: GameTime
+  player: Player
+  creature: Creature
+  friendship_level: Float!
+}
+
+type InventoryContents {
+  resources: [ResourceItem!]!
+  items: [InventoryItem!]!
+}
+
+type ResourceItem {
+  resourceId: ID!
+  resourceType: String!
+  resourceQuality: Float!
+  currentlyHeldBy: String!
+  holderId: ID
+  lastActionTime: DateTime!
+}
+
+type InventoryItem {
+  itemId: ID!
+  itemName: String!
+}

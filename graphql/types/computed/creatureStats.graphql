@@ -1,0 +1,81 @@
+type CreatureStatsRanking {
+  creatureId: ID!
+  creatureName: String!
+  factionName: String!
+  statValue: Float!
+  rank: Int!
+}
+
+type CreatureInNeed {
+  creatureId: ID!
+  creatureName: String!
+  factionName: String!
+  health: Float!
+  mood: Float!
+  social: Float!
+  mostCriticalStat: StatType!
+}
+
+type CreatureStatsRecord {
+  timestamp: DateTime!
+  health: Float!
+  mood: Float!
+  social: Float!
+}
+
+type FactionAggregateStats {
+  factionId: ID!
+  factionName: String!
+  averageHealth: Float!
+  averageMood: Float!
+  averageSocial: Float!
+  totalCreatures: Int!
+  creaturesInNeed: Int!
+}
+
+type FactionImbalanceReport {
+  imbalanceDetected: Boolean!
+  mostPowerfulFaction: FactionPowerStatus
+  leastPowerfulFaction: FactionPowerStatus
+  imbalanceDetails: String
+}
+
+type FactionPowerStatus {
+  factionId: ID!
+  factionName: String!
+  averagePower: Float!
+}
+
+type CreaturePopularity {
+  creatureId: ID!
+  creatureName: String!
+  factionName: String!
+  averageFriendshipLevel: Float!
+  totalFriends: Int!
+  rank: Int!
+}
+
+type StatTrend {
+  timestamp: DateTime!
+  averageHealth: Float!
+  averageMood: Float!
+  averageSocial: Float!
+  totalCreatures: Int!
+}
+
+type CreatureFriendship {
+  creatureId: ID!
+  creatureName: String!
+  factionName: String!
+  friendshipLevel: Float!
+  rank: Int!
+}
+
+type PlayerCreatureFriendship {
+  playerId: ID!
+  playerName: String!
+  creatureId: ID!
+  creatureName: String!
+  factionName: String!
+  friendshipLevel: Float!
+}

@@ -1,0 +1,11 @@
+enum StatType {
+  HEALTH
+  MOOD
+  SOCIAL
+}
+
+enum TimeInterval {
+  HOURLY
+  DAILY
+  WEEKLY
+}

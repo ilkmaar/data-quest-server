@@ -19,7 +19,8 @@ import { getUser } from "./middleware/getUser.js";
 
 dotenv.config();
 
-const CLIENT_URL = "https://data-quest-client.replit.app";
+const CLIENT_URL = process.env.CLIENT_APP_URL || "https://ilkmaar.com";
+
 const SERVER_URL =
   process.env.SERVER_URL || "https://data-quest-server.replit.app";
 
@@ -52,7 +53,12 @@ const corsOptions = {
 async function startServer() {
   // Load and merge GraphQL type definitions
   const typesArray = loadFilesSync(
-    [path.join(__dirname, "./graphql/types/users.graphql")],
+    [
+      path.join(__dirname, "./graphql/types/basic/*.graphql"),
+      path.join(__dirname, "./graphql/types/computed/*.graphql"),
+      path.join(__dirname, "./graphql/types/*.graphql"),
+      path.join(__dirname, "./graphql/queries/*.graphql"),
+    ],
     { loaders: [new GraphQLFileLoader()] },
   );
   const typeDefs = mergeTypeDefs(typesArray);
@@ -69,6 +75,7 @@ async function startServer() {
     context: ({ req }) => ({
       prisma,
       userId: req.user?.id,
+      userEmail: req.user?.email,
       role: req.user?.role,
     }),
     introspection: true,
@@ -136,6 +143,7 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`Server running at ${SERVER_URL}`);
       console.log(`GraphQL endpoint: ${SERVER_URL}/graphql`);
+      console.log(`CORS allowed from: `, CLIENT_URL);
     });
   });
 }

@@ -962,6 +962,17 @@ model user_players {
   @@schema("public")
 }
 
+model player_assignments {
+  account_email String
+  player_id String
+  player_name String
+  world_id String
+  world_name String
+
+  @@unique([account_email, player_id, world_id])
+  @@schema("public")
+}
+
 model user_roles {
   user_id String @db.Uuid
   role_id Int
