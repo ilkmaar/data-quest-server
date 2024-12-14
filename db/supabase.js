@@ -20,7 +20,7 @@ function parseCookies(cookieHeader) {
     cookieHeader.split("; ").map((cookie) => {
       const [name, ...rest] = cookie.split("=");
       return [name, decodeURIComponent(rest.join("="))];
-    }),
+    })
   );
 }
 
@@ -32,7 +32,6 @@ export function createClient(context) {
       cookies: {
         getAll() {
           const cookies = parseCookieHeader(context.req.headers.cookie ?? "");
-          console.log("getting cookies: ", cookies);
           return cookies;
         },
         setAll(cookiesToSet) {
@@ -40,11 +39,11 @@ export function createClient(context) {
           cookiesToSet.forEach(({ name, value, options }) =>
             context.res.appendHeader(
               "Cookie",
-              serializeCookieHeader(name, value, options),
-            ),
+              serializeCookieHeader(name, value, options)
+            )
           );
         },
       },
-    },
+    }
   );
 }

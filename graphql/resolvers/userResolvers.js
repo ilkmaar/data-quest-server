@@ -48,15 +48,12 @@ const resolvers = {
                     }))
                   : [],
             };
-          }),
+          })
       );
     },
 
     userPlayers: (_, __, { prisma, userId, userEmail }) => {
       ensureAuthenticated(userId);
-
-      console.log("userId: ", userId);
-      console.log("userEmail: ", userEmail);
       return handleErrors(() =>
         prisma.player_assignments
           .findMany({
@@ -72,8 +69,8 @@ const resolvers = {
                     name: userPlayer.world_name,
                   },
                 }))
-              : [],
-          ),
+              : []
+          )
       );
     },
   },

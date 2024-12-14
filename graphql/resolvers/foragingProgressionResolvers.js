@@ -1,9 +1,61 @@
 import { ensureAuthenticated, handleErrors } from "./utils.js";
+import { GraphQLScalarType } from "graphql";
+
+const JSONScalar = new GraphQLScalarType({
+  name: "JSON",
+  description: "An arbitrary JSON object",
+  serialize: (value) => {
+    // Ensure the value is JSON-serializable
+    if (typeof value === "object" || Array.isArray(value)) {
+      return value;
+    }
+    throw new Error("JSON Scalar can only serialize objects or arrays");
+  },
+  parseValue: (value) => {
+    // Input from the client
+    if (typeof value === "object" || Array.isArray(value)) {
+      return value;
+    }
+    throw new Error("JSON Scalar can only parse objects or arrays");
+  },
+  parseLiteral: (ast) => {
+    // Parse JSON literal in the query (if allowed)
+    switch (ast.kind) {
+      case Kind.OBJECT:
+        return parseASTToObject(ast);
+      case Kind.STRING:
+        return JSON.parse(ast.value);
+      default:
+        throw new Error("JSON Scalar can only parse object or string literals");
+    }
+  },
+});
+
+function parseASTToObject(ast) {
+  const value = Object.create(null);
+  ast.fields.forEach((field) => {
+    value[field.name.value] = parseLiteral(field.value);
+  });
+  return value;
+}
 
 // Known constants
-const REQUIRED_CATEGORIES = [1, 2, 3, 4];
-const REQUIRED_VARIETIES = [1, 2, 3, 4];
-const REQUIRED_ISLANDS = [1, 2, 3, 4];
+const REQUIRED_CATEGORIES = [
+  "resource_category_1",
+  "resource_category_2",
+  "resource_category_3",
+  "resource_category_4",
+];
+
+const REQUIRED_VARIETIES = [
+  "resource_variety_1",
+  "resource_variety_2",
+  "resource_variety_3",
+  "resource_variety_4",
+];
+
+const REQUIRED_ISLANDS = ["island_1", "island_2", "island_3", "island_4"];
+
 const REQUIRED_RESOURCE_COUNT = 16; // Total unique category-variety combos
 
 const QUALITY_THRESHOLDS = {
@@ -41,7 +93,7 @@ const PROGRESSION_LEVELS = {
   LEVEL_5: {
     id: 5,
     name: "Quality Apprentice",
-    description: `Forage any resource ≥${QUALITY_THRESHOLDS.NOVICE} quality`,
+    description: `Forage 3 different types of resources with ≥${QUALITY_THRESHOLDS.NOVICE} quality`,
     threshold: QUALITY_THRESHOLDS.NOVICE,
   },
   LEVEL_6: {
@@ -77,6 +129,7 @@ const PROGRESSION_LEVELS = {
 };
 
 const foragingProgressionResolvers = {
+  JSON: JSONScalar,
   Query: {
     playerForagingProgression: async (_, { playerId }, { prisma, userId }) => {
       ensureAuthenticated(userId);
@@ -107,61 +160,60 @@ const foragingProgressionResolvers = {
         });
 
         const progressData = calculateProgressionData(foragingActions);
-        const levels = Object.values(PROGRESSION_LEVELS).map((level) => ({
-          ...level,
-          completed: checkLevelCompletion(level.id, progressData),
-          progress: calculateLevelProgress(level.id, progressData),
-        }));
+
+        const convertedProgressData = {
+          allResources: Array.from(progressData.allResources),
+          resourcesByCategory: Object.fromEntries(
+            Array.from(progressData.resourcesByCategory, ([k, v]) => [
+              k,
+              Array.from(v),
+            ])
+          ),
+          resourcesByVariety: Object.fromEntries(
+            Array.from(progressData.resourcesByVariety, ([k, v]) => [
+              k,
+              Array.from(v),
+            ])
+          ),
+          resourcesByType: Object.fromEntries(
+            Array.from(progressData.resourcesByType, ([k, v]) => [
+              k,
+              Array.from(v),
+            ])
+          ),
+          resourcesByIsland: Object.fromEntries(
+            Array.from(progressData.resourcesByIsland, ([k, v]) => [
+              k,
+              Array.from(v),
+            ])
+          ),
+          resourceQualities: Object.fromEntries(progressData.resourceQualities),
+          resourceCategoryQualities: Object.fromEntries(
+            progressData.resourceCategoryQualities
+          ),
+          resourceVarietyQualities: Object.fromEntries(
+            progressData.resourceVarietyQualities
+          ),
+          resourceTypeQualities: Object.fromEntries(
+            progressData.resourceTypeQualities
+          ),
+        };
+
+        const levels = Object.values(PROGRESSION_LEVELS).map((level) => {
+          const levelProgress = calculateLevelProgress(level.id, progressData);
+
+          return {
+            ...level,
+            completed: checkLevelCompletion(level.id, progressData),
+            progress: levelProgress,
+          };
+        });
 
         return {
           currentLevel: levels.filter((l) => l.completed).length,
           totalLevels: levels.length,
           levels,
-          details: progressData,
-        };
-      });
-    },
-
-    foragingLevelDetails: async (
-      _,
-      { playerId, levelId },
-      { prisma, userId },
-    ) => {
-      ensureAuthenticated(userId);
-      return handleErrors(async () => {
-        const foragingActions = await prisma.foraging_actions.findMany({
-          where: { player_id: playerId },
-          include: {
-            resources: {
-              include: {
-                resource_types: {
-                  include: {
-                    resource_categories: true,
-                    resource_varieties: true,
-                  },
-                },
-              },
-            },
-            patches: {
-              include: {
-                plots: {
-                  include: {
-                    areas: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        const progressData = calculateProgressionData(foragingActions);
-        const level = PROGRESSION_LEVELS[`LEVEL_${levelId}`];
-
-        return {
-          ...level,
-          completed: checkLevelCompletion(levelId, progressData),
-          progress: calculateLevelProgress(levelId, progressData),
-          detailedProgress: getLevelDetails(levelId, progressData),
+          details: convertedProgressData,
         };
       });
     },
@@ -172,12 +224,15 @@ function calculateProgressionData(foragingActions) {
   const resourcesByCategory = new Map(); // categoryId -> Set(resourceId)
   const resourcesByVariety = new Map(); // varietyId -> Set(resourceId)
   const resourcesByIsland = new Map(); // islandId -> Set(resourceId)
-  const resourceQualities = new Map(); // resourceId -> maxQuality
+  const resourcesByType = new Map(); // typeId -> Set(resourceId)
+
   const allResources = new Set();
 
   // Track unique category-variety combos and their best qualities
-  const uniqueResourceTypes = new Set();
-  const typeQualities = new Map(); // "catId-varId" -> maxQuality
+  const resourceQualities = new Map();
+  const resourceTypeQualities = new Map(); // typeId -> maxQuality
+  const resourceCategoryQualities = new Map(); // categoryId -> maxQuality
+  const resourceVarietyQualities = new Map(); // varietyId -> maxQuality
 
   foragingActions.forEach((action) => {
     const resource = action.resources;
@@ -188,7 +243,9 @@ function calculateProgressionData(foragingActions) {
 
     const catId = category.resource_category_id;
     const varId = variety.resource_variety_id;
-    const comboKey = `${catId}-${varId}`;
+    const typeId = type.resource_type_id;
+
+    const quality = resource.resource_quality;
 
     allResources.add(resource.resource_id);
 
@@ -200,34 +257,42 @@ function calculateProgressionData(foragingActions) {
       resourcesByVariety.set(varId, new Set());
     resourcesByVariety.get(varId).add(resource.resource_id);
 
+    if (!resourcesByType.has(typeId)) resourcesByType.set(typeId, new Set());
+    resourcesByType.get(typeId).add(resource.resource_id);
+
     if (!resourcesByIsland.has(island))
       resourcesByIsland.set(island, new Set());
     resourcesByIsland.get(island).add(resource.resource_id);
 
-    // Update resource quality
-    const currentQuality = resourceQualities.get(resource.resource_id) || 0;
-    resourceQualities.set(
-      resource.resource_id,
-      Math.max(currentQuality, resource.resource_quality),
+    // Track resource qualities
+    resourceQualities.set(resource.resource_id, quality);
+
+    const currentTypeMaxQuality = resourceTypeQualities.get(typeId) || 0;
+    resourceTypeQualities.set(typeId, Math.max(currentTypeMaxQuality, quality));
+
+    const currentCatMaxQuality = resourceCategoryQualities.get(catId) || 0;
+    resourceCategoryQualities.set(
+      catId,
+      Math.max(currentCatMaxQuality, quality)
     );
 
-    // Track unique category-variety combo
-    uniqueResourceTypes.add(comboKey);
-    const currentTypeQuality = typeQualities.get(comboKey) || 0;
-    typeQualities.set(
-      comboKey,
-      Math.max(currentTypeQuality, resource.resource_quality),
+    const currentVarMaxQuality = resourceVarietyQualities.get(varId) || 0;
+    resourceVarietyQualities.set(
+      varId,
+      Math.max(currentVarMaxQuality, quality)
     );
   });
 
   return {
+    allResources,
     resourcesByCategory,
     resourcesByVariety,
+    resourcesByType,
     resourcesByIsland,
     resourceQualities,
-    allResources,
-    uniqueResourceTypes,
-    typeQualities,
+    resourceTypeQualities,
+    resourceCategoryQualities,
+    resourceVarietyQualities,
   };
 }
 
@@ -238,21 +303,23 @@ function checkAllPresent(requiredIds, map) {
 function checkAllQuality(requiredIds, map, qualities, threshold) {
   return requiredIds.every((id) =>
     Array.from(map.get(id) || []).some(
-      (resId) => qualities.get(resId) >= threshold,
-    ),
+      (resId) => qualities.get(resId) >= threshold
+    )
   );
 }
 
 function checkLevelCompletion(levelId, progressData) {
   const level = PROGRESSION_LEVELS[`LEVEL_${levelId}`];
   const {
+    allResources,
+    resourceQualities,
     resourcesByCategory,
     resourcesByVariety,
+    resourcesByType,
     resourcesByIsland,
-    resourceQualities,
-    allResources,
-    uniqueResourceTypes,
-    typeQualities,
+    resourceTypeQualities,
+    resourceCategoryQualities,
+    resourceVarietyQualities,
   } = progressData;
 
   switch (levelId) {
@@ -265,15 +332,17 @@ function checkLevelCompletion(levelId, progressData) {
     case 4:
       return checkAllPresent(REQUIRED_ISLANDS, resourcesByIsland);
     case 5:
-      return Array.from(resourceQualities.values()).some(
-        (q) => q >= level.threshold,
+      return (
+        Array.from(resourceTypeQualities.values()).filter(
+          (q) => q >= level.threshold
+        ).length > 2
       );
     case 6:
       return REQUIRED_ISLANDS.every((islandId) => {
         const islandResources = resourcesByIsland.get(islandId) || new Set();
         return REQUIRED_CATEGORIES.every((catId) => {
           return Array.from(islandResources).some((resId) =>
-            (resourcesByCategory.get(catId) || new Set()).has(resId),
+            (resourcesByCategory.get(catId) || new Set()).has(resId)
           );
         });
       });
@@ -281,24 +350,28 @@ function checkLevelCompletion(levelId, progressData) {
       return checkAllQuality(
         REQUIRED_CATEGORIES,
         resourcesByCategory,
-        resourceQualities,
-        level.threshold,
+        resourceCategoryQualities,
+        level.threshold
       );
-    case 8:
-      // Must have all 16 unique category-variety combos
-      return uniqueResourceTypes.size >= level.threshold;
+    case 8: {
+      return resourcesByType.size / level.threshold;
+    }
     case 9:
       // All 16 combos must meet quality threshold
-      if (uniqueResourceTypes.size < REQUIRED_RESOURCE_COUNT) return false;
-      return Array.from(uniqueResourceTypes).every(
-        (key) => (typeQualities.get(key) || 0) >= level.threshold,
-      );
+      if (resourcesByType.size < REQUIRED_RESOURCE_COUNT) return false;
+      return resourcesByType
+        .keys()
+        .every(
+          (key) => (resourceTypeQualities.get(key) || 0) >= level.threshold
+        );
     case 10:
       // All 16 combos must meet expert quality threshold
-      if (uniqueResourceTypes.size < REQUIRED_RESOURCE_COUNT) return false;
-      return Array.from(uniqueResourceTypes).every(
-        (key) => (typeQualities.get(key) || 0) >= level.threshold,
-      );
+      if (resourcesByType.size < REQUIRED_RESOURCE_COUNT) return false;
+      return resourcesByType
+        .keys()
+        .every(
+          (key) => (resourceTypeQualities.get(key) || 0) >= level.threshold
+        );
     default:
       return false;
   }
@@ -307,13 +380,15 @@ function checkLevelCompletion(levelId, progressData) {
 function calculateLevelProgress(levelId, progressData) {
   const level = PROGRESSION_LEVELS[`LEVEL_${levelId}`];
   const {
+    allResources,
+    resourceQualities,
     resourcesByCategory,
     resourcesByVariety,
+    resourcesByType,
     resourcesByIsland,
-    resourceQualities,
-    allResources,
-    uniqueResourceTypes,
-    typeQualities,
+    resourceTypeQualities,
+    resourceCategoryQualities,
+    resourceVarietyQualities,
   } = progressData;
 
   switch (levelId) {
@@ -321,36 +396,35 @@ function calculateLevelProgress(levelId, progressData) {
       return Math.min(1, allResources.size / level.threshold);
     case 2: {
       const catCount = REQUIRED_CATEGORIES.filter(
-        (c) =>
-          resourcesByCategory.has(c) && resourcesByCategory.get(c).size > 0,
+        (c) => resourcesByCategory.has(c) && resourcesByCategory.get(c).size > 0
       ).length;
       return catCount / REQUIRED_CATEGORIES.length;
     }
     case 3: {
       const varCount = REQUIRED_VARIETIES.filter(
-        (v) => resourcesByVariety.has(v) && resourcesByVariety.get(v).size > 0,
+        (v) => resourcesByVariety.has(v) && resourcesByVariety.get(v).size > 0
       ).length;
       return varCount / REQUIRED_VARIETIES.length;
     }
     case 4: {
       const islCount = REQUIRED_ISLANDS.filter(
-        (i) => resourcesByIsland.has(i) && resourcesByIsland.get(i).size > 0,
+        (i) => resourcesByIsland.has(i) && resourcesByIsland.get(i).size > 0
       ).length;
       return islCount / REQUIRED_ISLANDS.length;
     }
     case 5:
-      return Array.from(resourceQualities.values()).some(
-        (q) => q >= level.threshold,
-      )
-        ? 1
-        : 0;
+      return (
+        Array.from(resourceTypeQualities.values()).filter(
+          (q) => q >= level.threshold
+        ).length / 3
+      );
     case 6: {
       const islandScores = REQUIRED_ISLANDS.map((islandId) => {
         const islandResources = resourcesByIsland.get(islandId) || new Set();
         const categoriesFound = REQUIRED_CATEGORIES.filter((catId) =>
           Array.from(islandResources).some((resId) =>
-            (resourcesByCategory.get(catId) || new Set()).has(resId),
-          ),
+            (resourcesByCategory.get(catId) || new Set()).has(resId)
+          )
         ).length;
         return categoriesFound / REQUIRED_CATEGORIES.length;
       });
@@ -359,22 +433,29 @@ function calculateLevelProgress(levelId, progressData) {
       );
     }
     case 7: {
-      const catQualCount = REQUIRED_CATEGORIES.filter((catId) =>
-        Array.from(resourcesByCategory.get(catId) || []).some(
-          (resId) => resourceQualities.get(resId) >= level.threshold,
-        ),
-      ).length;
-      return catQualCount / REQUIRED_CATEGORIES.length;
+      const catQuals = REQUIRED_CATEGORIES.filter((catId) =>
+        Array.from(resourcesByCategory.get(catId) || new Set()).some(
+          (resId) => (resourceQualities.get(resId) || 0) >= level.threshold
+        )
+      );
+      return catQuals.length / REQUIRED_CATEGORIES.length;
     }
     case 8:
-      return Math.min(1, uniqueResourceTypes.size / level.threshold);
+      return Math.min(1, resourcesByType.size / level.threshold);
     case 9:
-    case 10: {
-      const qualifiedCount = Array.from(uniqueResourceTypes).filter(
-        (key) => (typeQualities.get(key) || 0) >= level.threshold,
+    case 9: {
+      const qualifiedCount = Array.from(resourcesByType.keys()).filter(
+        (key) => (resourceTypeQualities.get(key) || 0) >= level.threshold
       ).length;
       return Math.min(1, qualifiedCount / REQUIRED_RESOURCE_COUNT);
     }
+    case 10: {
+      const qualifiedCount = Array.from(resourcesByType.keys()).filter(
+        (key) => (resourceTypeQualities.get(key) || 0) >= level.threshold
+      ).length;
+      return Math.min(1, qualifiedCount / REQUIRED_RESOURCE_COUNT);
+    }
+
     default:
       return 0;
   }

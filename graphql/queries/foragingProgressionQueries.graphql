@@ -1,7 +1,11 @@
 type Query {
-  playerForagingProgression(playerId: Int!, worldId: String!): PlayerForagingProgression!
-  foragingLevelDetails(playerId: Int!, , worldId: String!, levelId: Int!): ForagingLevelDetails!
+  playerForagingProgression(
+    playerId: String!
+    worldId: String!
+  ): PlayerForagingProgression!
 }
+
+scalar JSON
 
 type PlayerForagingProgression {
   currentLevel: Int!
@@ -20,91 +24,14 @@ type ForagingLevel {
 }
 
 type ProgressData {
-  # Adapt these fields as needed
-  # Example:
-  resourcesByCategory: [CategoryResources!]
-  resourcesByVariety: [VarietyResources!]
-  resourcesByIsland: [IslandResources!]
-  resourceQualities: [ResourceQuality!]
-  allResources: [Int!]
-  uniqueResourceTypes: [UniqueResourceType!]
-  typeQualities: [TypeQuality!]
-}
+  allResources: [String!]!
+  resourcesByCategory: JSON!
+  resourcesByVariety: JSON!
+  resourcesByType: JSON!
+  resourcesByIsland: JSON!
 
-type ForagingLevelDetails {
-  id: Int!
-  name: String!
-  description: String!
-  threshold: Int!
-  completed: Boolean!
-  progress: Float!
-  detailedProgress: DetailedProgressData!
-}
-
-type CategoryResources {
-  categoryId: Int!
-  resourceIds: [Int!]!
-}
-
-type VarietyResources {
-  varietyId: Int!
-  resourceIds: [Int!]!
-}
-
-type IslandResources {
-  islandId: Int!
-  resourceIds: [Int!]!
-}
-
-type ResourceQuality {
-  resourceId: Int!
-  quality: Int!
-}
-
-type UniqueResourceType {
-  categoryId: Int!
-  varietyId: Int!
-}
-
-type TypeQuality {
-  categoryId: Int!
-  varietyId: Int!
-  quality: Int!
-}
-
-type DetailedProgressData {
-  # For example, for level 1:
-  resourcesFound: Int
-  # Add other fields depending on the level’s details
-}
-
-
-######
-
-type ForagingProgressionDetails {
-  totalResourcesFound: Int!
-  uniqueResourcesFound: Int!
-  highestQualityAchieved: Int!
-  averageQuality: Float!
-  categoryCompletionCounts: [CategoryCount!]!
-  varietyCompletionCounts: [VarietyCount!]!
-  islandCompletionCounts: [IslandCount!]!
-}
-
-type CategoryCount {
-  categoryId: String!
-  categoryName: String!
-  count: Int!
-}
-
-type VarietyCount {
-  varietyId: String!
-  varietyName: String!
-  count: Int!
-}
-
-type IslandCount {
-  islandId: String!
-  islandName: String!
-  count: Int!
+  resourceQualities: JSON!
+  resourceCategoryQualities: JSON!
+  resourceVarietyQualities: JSON!
+  resourceTypeQualities: JSON!
 }

@@ -5,16 +5,18 @@ export const getUser = async (req, res, next) => {
   const supabase = createClient({ req, res });
   const token = req.headers.authorization?.split(" ")[1];
 
-  console.log("getUser: ", req.headers.authorization);
   if (!token) {
     console.log("No authorization token in headers");
     req.user = null;
     return next();
   }
 
-  console.log("token: ", token);
-  if (token == "test-user-123") {
-    req.user = { id: "beecc9e6-a7f9-40d5-9d41-73d5b6d15059" };
+  if (process.env.NODE_ENV === "development" && token == "test-user-123") {
+    req.user = {
+      id: "beecc9e6-a7f9-40d5-9d41-73d5b6d15059",
+      email: "lhardy@concord.org",
+      role: "researcher",
+    };
     return next();
   }
 

@@ -59,7 +59,7 @@ async function startServer() {
       path.join(__dirname, "./graphql/types/*.graphql"),
       path.join(__dirname, "./graphql/queries/*.graphql"),
     ],
-    { loaders: [new GraphQLFileLoader()] },
+    { loaders: [new GraphQLFileLoader()] }
   );
   const typeDefs = mergeTypeDefs(typesArray);
 
@@ -109,7 +109,7 @@ async function startServer() {
             didEncounterErrors(context) {
               console.error(
                 "An error occurred during the request:",
-                context.errors,
+                context.errors
               );
             },
           };
@@ -141,7 +141,7 @@ async function startServer() {
 
     // Start the Express server
     app.listen(PORT, () => {
-      console.log(`Server running at ${SERVER_URL}`);
+      console.log(`Server running at ${SERVER_URL}:${PORT}`);
       console.log(`GraphQL endpoint: ${SERVER_URL}/graphql`);
       console.log(`CORS allowed from: `, CLIENT_URL);
     });

@@ -2,7 +2,7 @@ import { createClient } from "../db/supabase.js";
 
 export const authRoutes = (app) => {
   app.post("/auth/callback", async (req, res) => {
-
+    console.log("Received callback request:", req.body);
     const { code, codeVerifier } = req.body;
 
     if (!code) {

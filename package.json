@@ -5,6 +5,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "dev": "node ./index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -16,7 +17,7 @@
     "@graphql-tools/merge": "^9.0.4",
     "@graphql-tools/schema": "^10.0.4",
     "@prisma/client": "^5.17.0",
-    "@supabase/ssr": "^0.4.0",
+    "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.1",
     "@types/node": "^18.0.6",
     "apollo-server-express": "^3.13.0",

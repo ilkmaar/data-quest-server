@@ -33,6 +33,7 @@ type CreatureLocation {
 type CreatureState {
   creatureId: String!
   creatureName: String!
+  faction: String!
   health: Float
   mood: Float
   social: Float

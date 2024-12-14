@@ -58,15 +58,17 @@ const resolvers = {
         // Get latest state per creature
         // Postgres-specific: using a CTE or subquery to find max times
         const data = await prisma.$queryRaw`
-          SELECT DISTINCT ON (c.creature_id) c.creature_id, creature_state_record_health, creature_state_record_mood, creature_state_record_social, creature_state_record_time, c.creature_name
+          SELECT DISTINCT ON (c.creature_id) c.creature_id, f.faction_name, creature_state_record_health, creature_state_record_mood, creature_state_record_social, creature_state_record_time, c.creature_name
           FROM creature_state_records csr
           JOIN creatures c ON c.creature_id = csr.creature_id
+          JOIN factions f ON f.faction_id = c.faction_id
           WHERE csr.world_id = ${worldId}
           ORDER BY creature_id, creature_state_record_time DESC
         `;
         return data.map((row) => ({
           creatureId: row.creature_id,
           creatureName: row.creature_name,
+          faction: row.faction_name,
           health: row.creature_state_record_health,
           mood: row.creature_state_record_mood,
           social: row.creature_state_record_social,
