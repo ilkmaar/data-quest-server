@@ -25,7 +25,7 @@ const gameStateResolvers = {
             averageMood: averageStats._avg.creature_state_record_mood || 0,
             averageSocial: averageStats._avg.creature_state_record_social || 0,
           };
-        }),
+        })
       );
     },
     // islandHealth: async (_, { worldId }, { prisma }) => {

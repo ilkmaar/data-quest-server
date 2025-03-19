@@ -1,0 +1,59 @@
+query GetPlayerActivityTimeline(
+  $worldId: String!
+  $startDate: String
+  $endDate: String
+  $sessionIntervalMinutes: Int
+) {
+  playerActivityTimeline(
+    worldId: $worldId
+    startDate: $startDate
+    endDate: $endDate
+    sessionIntervalMinutes: $sessionIntervalMinutes
+  ) {
+    # Overall statistics
+    totalPlayers
+    totalTimePeriods
+
+    # Timeline of activity periods
+    activityPeriods {
+      periodId
+      startTime
+      endTime
+      totalActivePlayers
+      activePlayers {
+        playerId
+        playerName
+        eventCount
+        areas
+      }
+    }
+
+    # Player summary data
+    playerSummaries {
+      playerId
+      playerName
+      totalActivePeriods
+      activePeriodsPercentage
+      mostActiveTimeOfDay
+      mostActiveDay
+    }
+
+    # Co-presence data
+    playerCopresence {
+      player1Id
+      player1Name
+      player2Id
+      player2Name
+      periodsTogetherCount
+      copresencePercentage
+    }
+  }
+}
+
+# Example variables:
+# {
+#   "worldId": "your-world-id",
+#   "startDate": "2023-01-01T00:00:00Z",
+#   "endDate": "2023-01-02T00:00:00Z",
+#   "sessionIntervalMinutes": 30  # Divide the time range into 30-minute intervals
+# }

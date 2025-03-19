@@ -1,0 +1,67 @@
+query GetPlayerSessionAnalytics(
+  $worldId: String!
+  $startDate: String
+  $endDate: String
+  $playerId: String
+) {
+  playerSessionAnalytics(
+    worldId: $worldId
+    startDate: $startDate
+    endDate: $endDate
+    playerId: $playerId
+  ) {
+    # Overall statistics
+    totalPlayers
+    totalSessions
+    averageSessionLength
+
+    # Session distribution
+    sessionLengthDistribution {
+      durationRange
+      sessionCount
+      percentage
+    }
+
+    # Time patterns
+    sessionsByDay {
+      day
+      sessionCount
+      averageDuration
+    }
+
+    sessionsByHour {
+      hour
+      sessionCount
+      averageDuration
+    }
+
+    # Individual player data
+    playerSessions {
+      playerId
+      playerName
+      totalSessions
+      averageSessionLength
+      totalPlayTime
+      firstSession
+      lastSession
+
+      # Optional: Include detailed session data if needed
+      sessions {
+        sessionId
+        startTime
+        endTime
+        duration
+        eventCount
+        areas
+      }
+    }
+  }
+}
+
+# Example variables:
+# {
+#   "worldId": "your-world-id",
+#   "startDate": "2023-01-01T00:00:00Z",
+#   "endDate": "2023-12-31T23:59:59Z",
+#   "playerId": null  # Optional: Include to filter for a specific player
+# }

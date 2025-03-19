@@ -13,6 +13,7 @@ import foragingProgressionResolvers from "./foragingProgressionResolvers.js";
 import itemGivingProgressionResolvers from "./itemGivingProgressionResolvers.js";
 
 import playerRecordsResolvers from "./playerRecordsResolvers.js";
+import playerAnalyticsResolvers from "./playerAnalyticsResolvers.js";
 import potionsClinicResolvers from "./potionsClinicResolvers.js";
 import userResolvers from "./userResolvers.js";
 
@@ -28,6 +29,7 @@ const resolvers = mergeResolvers([
   itemGivingResolvers,
   itemGivingProgressionResolvers,
   playerRecordsResolvers,
+  playerAnalyticsResolvers,
   potionsClinicResolvers,
   userResolvers,
 ]);

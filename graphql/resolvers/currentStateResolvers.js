@@ -32,12 +32,13 @@ const resolvers = {
       ensureAuthenticated(userId);
       return handleErrors(async () => {
         const data = await prisma.$queryRaw`
-          SELECT DISTINCT ON (c.creature_id) c.creature_id, c.creature_name,
+          SELECT DISTINCT ON (c.creature_id) c.creature_id, f.faction_name, c.creature_name,
                  csr.creature_state_record_time,
                  a.area_x,
                  a.area_y
           FROM creature_state_records csr
           JOIN creatures c ON c.creature_id = csr.creature_id
+          JOIN factions f ON f.faction_id = c.faction_id
           LEFT JOIN areas a ON a.area_id = csr.area_id
           WHERE csr.world_id = ${worldId}
           ORDER BY c.creature_id, csr.creature_state_record_time DESC
@@ -45,6 +46,7 @@ const resolvers = {
         return data.map((row) => ({
           creatureId: row.creature_id,
           creatureName: row.creature_name,
+          faction: row.faction_name,
           x: row.area_x,
           y: row.area_y,
           updatedAt: row.creature_state_record_time.toISOString(),
@@ -55,17 +57,37 @@ const resolvers = {
     creaturesCurrentStats: async (_, { worldId }, { prisma, userId }) => {
       ensureAuthenticated(userId);
       return handleErrors(async () => {
-        // Get latest state per creature
-        // Postgres-specific: using a CTE or subquery to find max times
         const data = await prisma.$queryRaw`
-          SELECT DISTINCT ON (c.creature_id) c.creature_id, f.faction_name, creature_state_record_health, creature_state_record_mood, creature_state_record_social, creature_state_record_time, c.creature_name
-          FROM creature_state_records csr
-          JOIN creatures c ON c.creature_id = csr.creature_id
-          JOIN factions f ON f.faction_id = c.faction_id
-          WHERE csr.world_id = ${worldId}
-          ORDER BY creature_id, creature_state_record_time DESC
-        `;
-        return data.map((row) => ({
+      SELECT DISTINCT ON (c.creature_id) c.creature_id, f.faction_name, creature_state_record_health, creature_state_record_mood, creature_state_record_social, creature_state_record_time, c.creature_name
+      FROM creature_state_records csr
+      JOIN creatures c ON c.creature_id = csr.creature_id
+      JOIN factions f ON f.faction_id = c.faction_id
+      WHERE csr.world_id = ${worldId}
+      ORDER BY creature_id, creature_state_record_time DESC
+    `;
+
+        const averages = await prisma.$queryRaw`
+      SELECT f.faction_name,
+             AVG(creature_state_record_health) AS avg_health,
+             AVG(creature_state_record_mood) AS avg_mood,
+             AVG(creature_state_record_social) AS avg_social
+      FROM creature_state_records csr
+      JOIN creatures c ON c.creature_id = csr.creature_id
+      JOIN factions f ON f.faction_id = c.faction_id
+      WHERE csr.world_id = ${worldId}
+      GROUP BY f.faction_name
+    `;
+
+        console.log(averages);
+
+        const factions = averages.map((row) => ({
+          faction_name: row.faction_name,
+          avg_health: row.avg_health,
+          avg_mood: row.avg_mood,
+          avg_social: row.avg_social,
+        }));
+
+        const creatures = data.map((row) => ({
           creatureId: row.creature_id,
           creatureName: row.creature_name,
           faction: row.faction_name,
@@ -74,6 +96,11 @@ const resolvers = {
           social: row.creature_state_record_social,
           updatedAt: row.creature_state_record_time.toISOString(),
         }));
+
+        return {
+          creatures,
+          factions,
+        };
       });
     },
 

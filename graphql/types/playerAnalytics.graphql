@@ -1,0 +1,148 @@
+type ActivityTypeBreakdown {
+  activityType: String!
+  count: Int!
+  percentage: Float!
+}
+
+type AreaDetail {
+  area_id: String!
+  area_name: String!
+  island_id: String
+  island_name: String
+}
+
+type PlayerActivityPreference {
+  playerId: String!
+  playerName: String!
+  dominantActivity: String
+  diversityScore: Int!
+  activityBreakdown: [ActivityTypeBreakdown!]!
+}
+
+type Session {
+  sessionId: String!
+  startTime: String!
+  endTime: String!
+  duration: Float!
+  eventCount: Int!
+  areas: [String!]!
+  areaDetails: [AreaDetail!]!
+  eventTypes: [String!]!
+  events: [SessionEvent!]
+}
+
+type SessionEvent {
+  event_type: String!
+  timestamp: String!
+  details: JSON
+}
+
+scalar JSON
+
+type PlayerSessionData {
+  playerId: String!
+  playerName: String!
+  totalSessions: Int!
+  averageSessionLength: Float!
+  totalPlayTime: Float!
+  firstSession: String!
+  lastSession: String!
+  sessions: [Session!]!
+}
+
+type SessionDistribution {
+  durationRange: String!
+  sessionCount: Int!
+  percentage: Float!
+}
+
+type SessionsByDay {
+  day: String!
+  sessionCount: Int!
+  averageDuration: Float!
+}
+
+type SessionsByHour {
+  hour: Int!
+  sessionCount: Int!
+  averageDuration: Float!
+}
+
+type SessionsByDayPerWeek {
+  day: String!
+  weekStart: String!
+  sessionCount: Int!
+  totalPlayTime: Float!
+}
+
+type PlayerSessionAnalytics {
+  totalPlayers: Int!
+  totalSessions: Int!
+  averageSessionLength: Float!
+  playerSessions: [PlayerSessionData!]!
+  sessionLengthDistribution: [SessionDistribution!]!
+  sessionsByDay: [SessionsByDay!]!
+  sessionsByHour: [SessionsByHour!]!
+  sessionsByDayPerWeek: [SessionsByDayPerWeek!]!
+  activityTypeBreakdown: [ActivityTypeBreakdown!]!
+  playerActivityPreferences: [PlayerActivityPreference!]!
+}
+
+type ActivePlayer {
+  playerId: String!
+  playerName: String!
+  eventCount: Int!
+  areas: [String!]!
+  eventTypes: [String!]!
+}
+
+type ActivityPeriod {
+  periodId: String!
+  startTime: String!
+  endTime: String!
+  activePlayers: [ActivePlayer!]!
+  totalActivePlayers: Int!
+}
+
+type PlayerActivitySummary {
+  playerId: String!
+  playerName: String!
+  totalActivePeriods: Int!
+  activePeriodsPercentage: Float!
+  mostActiveTimeOfDay: String!
+  mostActiveDay: String!
+}
+
+type PlayerCopresence {
+  player1Id: String!
+  player1Name: String!
+  player2Id: String!
+  player2Name: String!
+  periodsTogetherCount: Int!
+  copresencePercentage: Float!
+}
+
+type PlayerActivityTimelineResponse {
+  totalPlayers: Int!
+  totalTimePeriods: Int!
+  activityPeriods: [ActivityPeriod!]!
+  playerSummaries: [PlayerActivitySummary!]!
+  playerCopresence: [PlayerCopresence!]!
+}
+
+extend type Query {
+  playerSessionAnalytics(
+    worldId: String!
+    startDate: String
+    endDate: String
+    playerId: String
+  ): PlayerSessionAnalytics!
+
+  playerActivityTimeline(
+    worldId: String!
+    startDate: String
+    endDate: String
+    sessionIntervalMinutes: Int
+    playerId: String
+  ): PlayerActivityTimelineResponse!
+}

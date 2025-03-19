@@ -1,3 +1,5 @@
+import { ensureAuthenticated, handleErrors } from "./utils.js";
+
 const playerRecordsResolvers = {
   Query: {
     // Revised: Recent giving history for a player
@@ -38,6 +40,72 @@ const playerRecordsResolvers = {
     //     throw new Error("Failed to fetch player giving history");
     //   }
     // },
+
+    playerMovementEvents: async (
+      _,
+      { worldId, startTime, endTime, limit = 100, offset = 0 },
+      { prisma, userId }
+    ) => {
+      ensureAuthenticated(userId);
+      return handleErrors(async () => {
+        // Build the query conditions
+        const whereConditions = {
+          world_id: worldId,
+        };
+
+        // Add time range conditions if provided
+        if (startTime) {
+          whereConditions.player_location_record_time = {
+            ...(whereConditions.player_location_record_time || {}),
+            gte: new Date(startTime),
+          };
+        }
+
+        if (endTime) {
+          whereConditions.player_location_record_time = {
+            ...(whereConditions.player_location_record_time || {}),
+            lte: new Date(endTime),
+          };
+        }
+
+        // Get the total count for pagination
+        const totalCount = await prisma.player_location_records.count({
+          where: whereConditions,
+        });
+
+        // Get the movement events with player and area information
+        const events = await prisma.player_location_records.findMany({
+          where: whereConditions,
+          include: {
+            players: true,
+            areas: true,
+          },
+          orderBy: {
+            player_location_record_time: "desc",
+          },
+          take: limit,
+          skip: offset,
+        });
+
+        // Format the response
+        const formattedEvents = events.map((event) => ({
+          id: event.player_location_record_id,
+          playerId: event.player_id,
+          playerName: event.players?.player_name || "Unknown",
+          x: event.player_location_record_x,
+          y: event.player_location_record_y,
+          areaId: event.area_id,
+          areaName: event.areas?.area_name || null,
+          timestamp: event.player_location_record_time.toISOString(),
+          gameTimeId: event.game_time_id,
+        }));
+
+        return {
+          totalCount,
+          events: formattedEvents,
+        };
+      });
+    },
   },
 };
 

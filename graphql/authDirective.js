@@ -7,7 +7,7 @@ function authDirectiveTransformer(schema, directiveName) {
       const authDirective = getDirective(
         schema,
         fieldConfig,
-        directiveName,
+        directiveName
       )?.[0];
       if (authDirective) {
         const { resolve = defaultFieldResolver } = fieldConfig;

@@ -1,17 +1,35 @@
 extend type Query {
   currentPlayerLocations(worldId: String!): [PlayerLocation]
   currentCreatureLocations(worldId: String!): [CreatureLocation]
-  creaturesCurrentStats(worldId: String!): [CreatureState]
-  factionStats(worldId: ID!): [FactionStat!]!
+  creaturesCurrentStats(worldId: String!): CreaturesCurrentStats!
+  factionStats(worldId: String!): [FactionStat!]!
   plotsCurrentHealth(worldId: String!): [PlotHealth]
   currentPlotHealthWithCoords(worldId: String!): [PlotStatus]
   playerCreatureFriendshipRankings(
     playerId: ID!
     limit: Int!
   ): [CreatureFriendship!]!
-  topPlayerFriendships(worldId: ID!, limit: Int!): [PlayerCreatureFriendship!]!
-  creaturePopularityRankings(worldId: ID!, limit: Int!): [CreaturePopularity!]!
+  topPlayerFriendships(
+    worldId: String!
+    limit: Int!
+  ): [PlayerCreatureFriendship!]!
+  creaturePopularityRankings(
+    worldId: String!
+    limit: Int!
+  ): [CreaturePopularity!]!
   worldDayAverages(worldId: String!): [WorldDayAverages]
+}
+
+type CreaturesCurrentStats {
+  factions: [FactionAverage!]!
+  creatures: [CreatureState!]!
+}
+
+type FactionAverage {
+  faction_name: String!
+  avg_health: Float!
+  avg_mood: Float!
+  avg_social: Float!
 }
 
 type PlayerLocation {
@@ -25,6 +43,7 @@ type PlayerLocation {
 type CreatureLocation {
   creatureId: String!
   creatureName: String!
+  faction: String!
   x: Float
   y: Float
   updatedAt: String!

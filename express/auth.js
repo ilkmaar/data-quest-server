@@ -33,6 +33,20 @@ export const authRoutes = (app) => {
     }
   });
 
+  app.post("/auth/login", async (req, res) => {
+    const supabase = createClient({ req, res });
+    const { email, password } = req.body;
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      console.error("Error logging out:", error);
+      return res.status(500).send("Error logging out");
+    }
+    res.json({ success: true });
+  });
+
   app.post("/auth/logout", async (req, res) => {
     const supabase = createClient({ req, res });
     const { error } = await supabase.auth.signOut();

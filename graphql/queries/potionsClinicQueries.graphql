@@ -16,11 +16,11 @@ type Query {
 
   # Effects each potion had on creatures: from treatment_events joined with creatures and items
   # Filters by playerId if provided, and by worldId if provided.
-  potionEffects(playerId: Int, worldId: String): [PotionEffect!]!
+  potionEffects(playerId: String, worldId: String): [PotionEffect!]!
 
   # Potion crafting details: from crafting_actions joined with items (output), resources (ingredients)
   # Filters by playerId if provided, and by worldId if provided.
-  potionCrafting(playerId: Int, worldId: String): [PotionCrafting!]!
+  potionCrafting(playerId: String, worldId: String): [PotionCrafting!]!
 }
 
 type PatientRecord {
@@ -47,10 +47,10 @@ type DiseaseFrequencyEntry {
 }
 
 type PotionEffect {
-  treatmentEventId: Int!
+  treatmentEventId: String!
   creatureId: String!
   creatureName: String!
-  potionItemId: Int!
+  potionItemId: String!
   potionItemName: String!
   healthDelta: Float
   moodDelta: Float
@@ -60,8 +60,8 @@ type PotionEffect {
 
 type PotionCrafting {
   craftingActionId: String!
-  playerId: Int
-  worldId: String
+  playerId: String!
+  worldId: String!
   craftingTime: String!
   ingredient1Name: String
   ingredient2Name: String

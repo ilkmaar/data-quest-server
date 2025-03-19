@@ -354,7 +354,7 @@ function checkLevelCompletion(levelId, progressData) {
         level.threshold
       );
     case 8: {
-      return resourcesByType.size / level.threshold;
+      return resourcesByType.size >= level.threshold;
     }
     case 9:
       // All 16 combos must meet quality threshold

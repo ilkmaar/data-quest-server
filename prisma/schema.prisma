@@ -1,7 +1,7 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema", "views"]
-  engineType = "binary"
+  engineType      = "binary"
 }
 
 datasource db {
@@ -95,12 +95,14 @@ model mfa_amr_claims {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model mfa_challenges {
-  id          String      @id @db.Uuid
-  factor_id   String      @db.Uuid
-  created_at  DateTime    @db.Timestamptz(6)
-  verified_at DateTime?   @db.Timestamptz(6)
-  ip_address  String      @db.Inet
-  mfa_factors mfa_factors @relation(fields: [factor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "mfa_challenges_auth_factor_id_fkey")
+  id                     String      @id @db.Uuid
+  factor_id              String      @db.Uuid
+  created_at             DateTime    @db.Timestamptz(6)
+  verified_at            DateTime?   @db.Timestamptz(6)
+  ip_address             String      @db.Inet
+  otp_code               String?
+  web_authn_session_data Json?
+  mfa_factors            mfa_factors @relation(fields: [factor_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "mfa_challenges_auth_factor_id_fkey")
 
   @@index([created_at(sort: Desc)], map: "mfa_challenge_created_at_idx")
   @@schema("auth")
@@ -109,17 +111,22 @@ model mfa_challenges {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model mfa_factors {
-  id             String           @id @db.Uuid
-  user_id        String           @db.Uuid
-  friendly_name  String?
-  factor_type    factor_type
-  status         factor_status
-  created_at     DateTime         @db.Timestamptz(6)
-  updated_at     DateTime         @db.Timestamptz(6)
-  secret         String?
-  mfa_challenges mfa_challenges[]
-  users          users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                   String           @id @db.Uuid
+  user_id              String           @db.Uuid
+  friendly_name        String?
+  factor_type          factor_type
+  status               factor_status
+  created_at           DateTime         @db.Timestamptz(6)
+  updated_at           DateTime         @db.Timestamptz(6)
+  secret               String?
+  phone                String?
+  last_challenged_at   DateTime?        @unique @db.Timestamptz(6)
+  web_authn_credential Json?
+  web_authn_aaguid     String?          @db.Uuid
+  mfa_challenges       mfa_challenges[]
+  users                users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([user_id, phone], map: "unique_phone_factor_per_user")
   @@index([user_id, created_at], map: "factor_id_created_at_idx")
   @@index([user_id])
   @@schema("auth")
@@ -335,21 +342,25 @@ model activity_types {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model areas {
-  area_id                                                                                             String                       @id @db.VarChar(64)
+  area_id                                                                                             String                        @id @db.VarChar(64)
   fv_area_id                                                                                          Int?
-  area_name                                                                                           String                       @db.VarChar(64)
+  area_name                                                                                           String                        @db.VarChar(64)
   area_x                                                                                              Float?
   area_y                                                                                              Float?
-  island_id                                                                                           String?                      @db.VarChar(64)
-  activity_type_id                                                                                    String?                      @db.VarChar(64)
-  activity_types                                                                                      activity_types?              @relation(fields: [activity_type_id], references: [activity_type_id], onDelete: NoAction, onUpdate: NoAction)
-  islands                                                                                             islands?                     @relation(fields: [island_id], references: [island_id], onDelete: NoAction, onUpdate: NoAction)
+  island_id                                                                                           String?                       @db.VarChar(64)
+  activity_type_id                                                                                    String?                       @db.VarChar(64)
+  activity_types                                                                                      activity_types?               @relation(fields: [activity_type_id], references: [activity_type_id], onDelete: NoAction, onUpdate: NoAction)
+  islands                                                                                             islands?                      @relation(fields: [island_id], references: [island_id], onDelete: NoAction, onUpdate: NoAction)
   creature_activity_records                                                                           creature_activity_records[]
-  creature_direction_actions_creature_direction_actions_creature_direction_action_from_area_idToareas creature_direction_actions[] @relation("creature_direction_actions_creature_direction_action_from_area_idToareas")
-  creature_direction_actions_creature_direction_actions_creature_direction_action_to_area_idToareas   creature_direction_actions[] @relation("creature_direction_actions_creature_direction_action_to_area_idToareas")
+  creature_direction_actions_creature_direction_actions_creature_direction_action_from_area_idToareas creature_direction_actions[]  @relation("creature_direction_actions_creature_direction_action_from_area_idToareas")
+  creature_direction_actions_creature_direction_actions_creature_direction_action_to_area_idToareas   creature_direction_actions[]  @relation("creature_direction_actions_creature_direction_action_to_area_idToareas")
+  creature_interaction_events                                                                         creature_interaction_events[]
   creature_state_records                                                                              creature_state_records[]
+  patch_measure_events                                                                                patch_measure_events[]
   player_location_records                                                                             player_location_records[]
+  player_trade_item_events                                                                            player_trade_item_events[]
   plots                                                                                               plots[]
+  sickness_events                                                                                     sickness_events[]
 
   @@schema("public")
 }
@@ -427,18 +438,20 @@ model creature_direction_actions {
 }
 
 model creature_state_records {
-  creature_state_record_id     String     @id
+  creature_state_record_id     String      @id
   fv_creature_state_record_id  Int?
-  creature_state_record_time   DateTime   @db.Timestamp(6)
+  creature_state_record_time   DateTime    @db.Timestamp(6)
   creature_state_record_health Float?
   creature_state_record_mood   Float?
   creature_state_record_social Float?
   world_id                     String?
   creature_id                  String?
   area_id                      String?
-  areas                        areas?     @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
-  creatures                    creatures? @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
-  worlds                       worlds?    @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+  game_time_id                 String?
+  areas                        areas?      @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  creatures                    creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                   game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                       worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }
@@ -453,26 +466,33 @@ model creature_types {
 }
 
 model creatures {
-  creature_id                String                       @id
-  fv_creature_id             String?
-  world_id                   String?
-  creature_name              String
-  creature_created_date      DateTime                     @db.Timestamp(6)
-  faction_id                 String?
-  color_id                   String?
-  creature_type_id           String?
-  creature_activity_records  creature_activity_records[]
-  creature_direction_actions creature_direction_actions[]
-  creature_state_records     creature_state_records[]
-  colors                     colors?                      @relation(fields: [color_id], references: [color_id], onDelete: NoAction, onUpdate: NoAction)
-  creature_types             creature_types?              @relation(fields: [creature_type_id], references: [creature_type_id], onDelete: NoAction, onUpdate: NoAction)
-  factions                   factions?                    @relation(fields: [faction_id], references: [faction_id], onDelete: NoAction, onUpdate: NoAction)
-  worlds                     worlds?                      @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
-  diner_review_actions       diner_review_actions[]
-  diner_seating_actions      diner_seating_actions[]
-  friendship_records         friendship_records[]
-  giving_actions             giving_actions[]
-  patch_tending_actions      patch_tending_actions[]
+  creature_id                 String                        @id
+  fv_creature_id              String?
+  world_id                    String?
+  creature_name               String
+  creature_created_date       DateTime                      @db.Timestamp(6)
+  faction_id                  String?
+  color_id                    String?
+  creature_type_id            String?
+  creature_activity_records   creature_activity_records[]
+  creature_direction_actions  creature_direction_actions[]
+  creature_interaction_events creature_interaction_events[]
+  creature_state_records      creature_state_records[]
+  creature_stats_events       creature_stats_events[]
+  colors                      colors?                       @relation(fields: [color_id], references: [color_id], onDelete: NoAction, onUpdate: NoAction)
+  creature_types              creature_types?               @relation(fields: [creature_type_id], references: [creature_type_id], onDelete: NoAction, onUpdate: NoAction)
+  factions                    factions?                     @relation(fields: [faction_id], references: [faction_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                      worlds?                       @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+  diner_review_actions        diner_review_actions[]
+  diner_seating_actions       diner_seating_actions[]
+  friendship_records          friendship_records[]
+  giving_actions              giving_actions[]
+  medical_room_send_events    medical_room_send_events[]
+  patch_tending_actions       patch_tending_actions[]
+  request_board_items         request_board_items[]
+  sickness_events             sickness_events[]
+  treatment_actions           treatment_actions[]
+  triage_events               triage_events[]
 
   @@schema("public")
 }
@@ -606,29 +626,45 @@ model friendship_records {
 }
 
 model game_times {
-  game_time_id               String                       @id
-  fv_game_time_id            Int?
-  game_time_number           String?                      @unique
-  day_id                     String?
-  time_of_day_id             String?
-  season_id                  String?
-  crafting_actions           crafting_actions[]
-  creature_activity_records  creature_activity_records[]
-  creature_direction_actions creature_direction_actions[]
-  data_actions               data_actions[]
-  diner_review_actions       diner_review_actions[]
-  diner_seating_actions      diner_seating_actions[]
-  foraging_actions           foraging_actions[]
-  friendship_records         friendship_records[]
-  days                       days?                        @relation(fields: [day_id], references: [day_id], onDelete: NoAction, onUpdate: NoAction)
-  seasons                    seasons?                     @relation(fields: [season_id], references: [season_id], onDelete: NoAction, onUpdate: NoAction)
-  time_of_days               time_of_days?                @relation(fields: [time_of_day_id], references: [time_of_day_id], onDelete: NoAction, onUpdate: NoAction)
-  giving_actions             giving_actions[]
-  inventory_actions          inventory_actions[]
-  patch_actions              patch_actions[]
-  patch_health_records       patch_health_records[]
-  patch_tending_actions      patch_tending_actions[]
-  player_location_records    player_location_records[]
+  game_time_id                String                        @id
+  fv_game_time_id             Int?
+  game_time_number            String?                       @unique
+  day_id                      String?
+  time_of_day_id              String?
+  season_id                   String?
+  anomaly_readings            anomaly_readings[]
+  avatar_update_actions       avatar_update_actions[]
+  crafting_actions            crafting_actions[]
+  creature_activity_records   creature_activity_records[]
+  creature_direction_actions  creature_direction_actions[]
+  creature_interaction_events creature_interaction_events[]
+  creature_state_records      creature_state_records[]
+  creature_stats_events       creature_stats_events[]
+  data_actions                data_actions[]
+  diner_review_actions        diner_review_actions[]
+  diner_seating_actions       diner_seating_actions[]
+  foraging_actions            foraging_actions[]
+  friendship_records          friendship_records[]
+  days                        days?                         @relation(fields: [day_id], references: [day_id], onDelete: NoAction, onUpdate: NoAction)
+  seasons                     seasons?                      @relation(fields: [season_id], references: [season_id], onDelete: NoAction, onUpdate: NoAction)
+  time_of_days                time_of_days?                 @relation(fields: [time_of_day_id], references: [time_of_day_id], onDelete: NoAction, onUpdate: NoAction)
+  giving_actions              giving_actions[]
+  imbalance_records           imbalance_records[]
+  inventory_actions           inventory_actions[]
+  medical_room_send_events    medical_room_send_events[]
+  patch_actions               patch_actions[]
+  patch_health_records        patch_health_records[]
+  patch_measure_events        patch_measure_events[]
+  patch_tending_actions       patch_tending_actions[]
+  player_location_records     player_location_records[]
+  player_trade_item_events    player_trade_item_events[]
+  request_board_actions       request_board_actions[]
+  request_board_items         request_board_items[]
+  rune_minigame_events        rune_minigame_events[]
+  sickness_events             sickness_events[]
+  smashing_minigame_events    smashing_minigame_events[]
+  treatment_actions           treatment_actions[]
+  triage_events               triage_events[]
 
   @@schema("public")
 }
@@ -709,14 +745,16 @@ model item_categories {
 }
 
 model item_types {
-  item_type_id     String           @id @db.VarChar(64)
-  fv_item_type_id  Int?
-  item_type_name   String           @db.VarChar(64)
-  item_category_id String?          @db.VarChar(64)
-  item_variety_id  String?          @db.VarChar(64)
-  item_categories  item_categories? @relation(fields: [item_category_id], references: [item_category_id], onDelete: NoAction, onUpdate: NoAction)
-  item_varieties   item_varieties?  @relation(fields: [item_variety_id], references: [item_variety_id], onDelete: NoAction, onUpdate: NoAction)
-  items            items[]
+  item_type_id                                                                                  String                @id @db.VarChar(64)
+  fv_item_type_id                                                                               Int?
+  item_type_name                                                                                String                @db.VarChar(64)
+  item_category_id                                                                              String?               @db.VarChar(64)
+  item_variety_id                                                                               String?               @db.VarChar(64)
+  item_categories                                                                               item_categories?      @relation(fields: [item_category_id], references: [item_category_id], onDelete: NoAction, onUpdate: NoAction)
+  item_varieties                                                                                item_varieties?       @relation(fields: [item_variety_id], references: [item_variety_id], onDelete: NoAction, onUpdate: NoAction)
+  items                                                                                         items[]
+  request_board_items_request_board_items_request_board_item_requested_item_type_idToitem_types request_board_items[] @relation("request_board_items_request_board_item_requested_item_type_idToitem_types")
+  request_board_items_request_board_items_request_board_item_reward_item_type_idToitem_types    request_board_items[] @relation("request_board_items_request_board_item_reward_item_type_idToitem_types")
 
   @@schema("public")
 }
@@ -734,19 +772,24 @@ model item_varieties {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model items {
-  item_id              String                 @id
-  fv_item_id           Int?
-  world_id             String?
-  item_created_date    DateTime               @db.Timestamp(6)
-  item_quality         Int
-  item_type_id         String?
-  crafting_actions     crafting_actions[]
-  diner_review_actions diner_review_actions[]
-  giving_actions       giving_actions[]
-  inventory_actions    inventory_actions[]
-  item_types           item_types?            @relation(fields: [item_type_id], references: [item_type_id], onDelete: NoAction, onUpdate: NoAction)
-  worlds               worlds?                @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
-  patch_actions        patch_actions[]
+  item_id                  String                     @id
+  fv_item_id               Int?
+  world_id                 String?
+  item_created_date        DateTime                   @db.Timestamp(6)
+  item_quality             Int
+  item_type_id             String?
+  item_is_anomalous        Int?                       @db.SmallInt
+  crafting_actions         crafting_actions[]
+  diner_review_actions     diner_review_actions[]
+  giving_actions           giving_actions[]
+  inventory_actions        inventory_actions[]
+  item_types               item_types?                @relation(fields: [item_type_id], references: [item_type_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                   worlds?                    @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+  patch_actions            patch_actions[]
+  player_trade_item_events player_trade_item_events[]
+  request_board_actions    request_board_actions[]
+  smashing_minigame_events smashing_minigame_events[]
+  treatment_actions        treatment_actions[]
 
   @@schema("public")
 }
@@ -821,6 +864,7 @@ model patches {
   foraging_actions      foraging_actions[]
   patch_actions         patch_actions[]
   patch_health_records  patch_health_records[]
+  patch_measure_events  patch_measure_events[]
   patch_tending_actions patch_tending_actions[]
   plots                 plots?                  @relation(fields: [plot_id], references: [plot_id], onDelete: NoAction, onUpdate: NoAction)
 
@@ -846,23 +890,36 @@ model player_location_records {
 }
 
 model players {
-  player_id                  String                       @id
-  fv_player_id               Int?
-  world_id                   String?
-  player_name                String
-  crafting_actions           crafting_actions[]
-  creature_direction_actions creature_direction_actions[]
-  data_actions               data_actions[]
-  diner_seating_actions      diner_seating_actions[]
-  foraging_actions           foraging_actions[]
-  friendship_records         friendship_records[]
-  giving_actions             giving_actions[]
-  inventory_actions          inventory_actions[]
-  patch_actions              patch_actions[]
-  patch_tending_actions      patch_tending_actions[]
-  player_location_records    player_location_records[]
-  worlds                     worlds?                      @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
-  user_players               user_players[]
+  player_id                                                                      String                        @id
+  fv_player_id                                                                   Int?
+  world_id                                                                       String?
+  player_name                                                                    String
+  anomaly_readings                                                               anomaly_readings[]
+  avatar_update_actions                                                          avatar_update_actions[]
+  crafting_actions                                                               crafting_actions[]
+  creature_direction_actions                                                     creature_direction_actions[]
+  creature_interaction_events                                                    creature_interaction_events[]
+  data_actions                                                                   data_actions[]
+  diner_seating_actions                                                          diner_seating_actions[]
+  foraging_actions                                                               foraging_actions[]
+  friendship_records                                                             friendship_records[]
+  giving_actions                                                                 giving_actions[]
+  inventory_actions                                                              inventory_actions[]
+  medical_room_send_events                                                       medical_room_send_events[]
+  patch_actions                                                                  patch_actions[]
+  patch_measure_events                                                           patch_measure_events[]
+  patch_tending_actions                                                          patch_tending_actions[]
+  player_location_records                                                        player_location_records[]
+  player_trade_item_events_player_trade_item_events_player_idToplayers           player_trade_item_events[]    @relation("player_trade_item_events_player_idToplayers")
+  player_trade_item_events_player_trade_item_events_receiving_player_idToplayers player_trade_item_events[]    @relation("player_trade_item_events_receiving_player_idToplayers")
+  worlds                                                                         worlds?                       @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+  request_board_actions_request_board_actions_creature_idToplayers               request_board_actions[]       @relation("request_board_actions_creature_idToplayers")
+  request_board_actions_request_board_actions_player_idToplayers                 request_board_actions[]       @relation("request_board_actions_player_idToplayers")
+  rune_minigame_events                                                           rune_minigame_events[]
+  smashing_minigame_events                                                       smashing_minigame_events[]
+  treatment_actions                                                              treatment_actions[]
+  triage_events                                                                  triage_events[]
+  user_players                                                                   user_players[]
 
   @@schema("public")
 }
@@ -887,14 +944,16 @@ model resource_categories {
 }
 
 model resource_types {
-  resource_type_id     String               @id @db.VarChar(64)
-  fv_resource_type_id  Int?
-  resource_type_name   String               @db.VarChar(64)
-  resource_category_id String?              @db.VarChar(64)
-  resource_variety_id  String?              @db.VarChar(64)
-  resource_categories  resource_categories? @relation(fields: [resource_category_id], references: [resource_category_id], onDelete: NoAction, onUpdate: NoAction)
-  resource_varieties   resource_varieties?  @relation(fields: [resource_variety_id], references: [resource_variety_id], onDelete: NoAction, onUpdate: NoAction)
-  resources            resources[]
+  resource_type_id                                                                                      String                @id @db.VarChar(64)
+  fv_resource_type_id                                                                                   Int?
+  resource_type_name                                                                                    String                @db.VarChar(64)
+  resource_category_id                                                                                  String?               @db.VarChar(64)
+  resource_variety_id                                                                                   String?               @db.VarChar(64)
+  request_board_items_request_board_items_request_board_item_requested_resource_type_idToresource_types request_board_items[] @relation("request_board_items_request_board_item_requested_resource_type_idToresource_types")
+  request_board_items_request_board_items_request_board_item_reward_resource_type_idToresource_types    request_board_items[] @relation("request_board_items_request_board_item_reward_resource_type_idToresource_types")
+  resource_categories                                                                                   resource_categories?  @relation(fields: [resource_category_id], references: [resource_category_id], onDelete: NoAction, onUpdate: NoAction)
+  resource_varieties                                                                                    resource_varieties?   @relation(fields: [resource_variety_id], references: [resource_variety_id], onDelete: NoAction, onUpdate: NoAction)
+  resources                                                                                             resources[]
 
   @@schema("public")
 }
@@ -916,6 +975,8 @@ model resources {
   resource_created_date                                                DateTime            @db.Timestamp(6)
   resource_quality                                                     Int
   resource_type_id                                                     String?
+  resource_is_anomalous                                                Int?                @db.SmallInt
+  resource_affects_crafting                                            Int?                @db.SmallInt
   crafting_actions_crafting_actions_ingredient1_resource_idToresources crafting_actions[]  @relation("crafting_actions_ingredient1_resource_idToresources")
   crafting_actions_crafting_actions_ingredient2_resource_idToresources crafting_actions[]  @relation("crafting_actions_ingredient2_resource_idToresources")
   foraging_actions                                                     foraging_actions[]
@@ -962,17 +1023,6 @@ model user_players {
   @@schema("public")
 }
 
-model player_assignments {
-  account_email String
-  player_id String
-  player_name String
-  world_id String
-  world_name String
-
-  @@unique([account_email, player_id, world_id])
-  @@schema("public")
-}
-
 model user_roles {
   user_id String @db.Uuid
   role_id Int
@@ -1010,32 +1060,370 @@ model weather_records {
 }
 
 model worlds {
-  world_id                   String                       @id
-  fv_world_id                String?
-  world_created_date         DateTime                     @db.Timestamp(6)
-  world_name                 String
-  crafting_actions           crafting_actions[]
-  creature_activity_records  creature_activity_records[]
-  creature_direction_actions creature_direction_actions[]
-  creature_state_records     creature_state_records[]
-  creatures                  creatures[]
-  data_actions               data_actions[]
-  data_tables                data_tables[]
-  diner_review_actions       diner_review_actions[]
-  diner_seating_actions      diner_seating_actions[]
-  foraging_actions           foraging_actions[]
-  friendship_records         friendship_records[]
-  giving_actions             giving_actions[]
-  inventory_actions          inventory_actions[]
-  items                      items[]
-  patch_actions              patch_actions[]
-  patch_health_records       patch_health_records[]
-  patch_tending_actions      patch_tending_actions[]
-  player_location_records    player_location_records[]
-  players                    players[]
-  resources                  resources[]
-  user_world_access          user_world_access[]
-  weather_records            weather_records[]
+  world_id                    String                        @id
+  fv_world_id                 String?
+  world_created_date          DateTime                      @db.Timestamp(6)
+  world_name                  String
+  anomaly_readings            anomaly_readings[]
+  avatar_update_actions       avatar_update_actions[]
+  crafting_actions            crafting_actions[]
+  creature_activity_records   creature_activity_records[]
+  creature_direction_actions  creature_direction_actions[]
+  creature_interaction_events creature_interaction_events[]
+  creature_state_records      creature_state_records[]
+  creature_stats_events       creature_stats_events[]
+  creatures                   creatures[]
+  data_actions                data_actions[]
+  data_tables                 data_tables[]
+  diner_review_actions        diner_review_actions[]
+  diner_seating_actions       diner_seating_actions[]
+  foraging_actions            foraging_actions[]
+  friendship_records          friendship_records[]
+  giving_actions              giving_actions[]
+  imbalance_records           imbalance_records[]
+  inventory_actions           inventory_actions[]
+  items                       items[]
+  medical_room_send_events    medical_room_send_events[]
+  patch_actions               patch_actions[]
+  patch_health_records        patch_health_records[]
+  patch_measure_events        patch_measure_events[]
+  patch_tending_actions       patch_tending_actions[]
+  player_location_records     player_location_records[]
+  player_trade_item_events    player_trade_item_events[]
+  players                     players[]
+  request_board_actions       request_board_actions[]
+  request_board_items         request_board_items[]
+  resources                   resources[]
+  rune_minigame_events        rune_minigame_events[]
+  sickness_events             sickness_events[]
+  smashing_minigame_events    smashing_minigame_events[]
+  treatment_actions           treatment_actions[]
+  triage_events               triage_events[]
+  user_world_access           user_world_access[]
+  weather_records             weather_records[]
+
+  @@schema("public")
+}
+
+model anomaly_readings {
+  anomaly_reading_id    String      @id
+  fv_anomaly_reading_id Int
+  anomaly_reading_time  DateTime    @db.Timestamp(6)
+  anomaly_reading_x     Float
+  anomaly_reading_y     Float
+  anomaly_reading_value Float
+  anomaly_mapped        String
+  world_id              String?
+  player_id             String?
+  game_time_id          String?
+  game_times            game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players               players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model avatar_update_actions {
+  avatar_update_action_id             String      @id @db.VarChar(255)
+  fv_avatar_update_action_id          Int?
+  avatar_update_action_time           DateTime    @db.Timestamp(6)
+  avatar_update_action_body_type      Int
+  avatar_update_action_height         Float
+  avatar_update_action_face           Int
+  avatar_update_action_eyes           Int
+  avatar_update_action_nose           Int
+  avatar_update_action_mouth          Int
+  avatar_update_action_skin_color     String      @db.VarChar(255)
+  avatar_update_action_hairstyle      Int
+  avatar_update_action_hair_color     String      @db.VarChar(255)
+  avatar_update_action_outfit         Int
+  avatar_update_action_outfit_color   String      @db.VarChar(255)
+  avatar_update_action_glasses        Int
+  avatar_update_action_cane           Int
+  avatar_update_action_prosthetic     Int
+  avatar_update_action_hearing_aid    Int
+  avatar_update_action_diabetes_patch Int
+  avatar_update_action_goggles        Int
+  world_id                            String?     @db.VarChar(255)
+  game_time_id                        String?     @db.VarChar(255)
+  player_id                           String?     @db.VarChar(255)
+  game_times                          game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                             players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                              worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model imbalance_records {
+  imbalance_record_id         String      @id
+  fv_imbalance_record_id      Int
+  imbalance_record_time       DateTime    @db.Timestamp(6)
+  imbalance_metric            Int
+  faction_1_id                Int
+  faction_2_id                Int
+  imbalance_record_value      Float
+  imbalance_record_value_text String
+  world_id                    String?
+  game_time_id                String?
+  game_times                  game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                      worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model request_board_actions {
+  request_board_action_id                            String               @id
+  fv_request_board_action_id                         Int
+  request_board_action_type                          Int
+  friendship_bonus                                   Float?
+  world_id                                           String?
+  game_time_id                                       String?
+  player_id                                          String?
+  creature_id                                        String?
+  item_id                                            String?
+  request_board_item_id                              String?
+  players_request_board_actions_creature_idToplayers players?             @relation("request_board_actions_creature_idToplayers", fields: [creature_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                                         game_times?          @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  items                                              items?               @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  players_request_board_actions_player_idToplayers   players?             @relation("request_board_actions_player_idToplayers", fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  request_board_items                                request_board_items? @relation(fields: [request_board_item_id], references: [request_board_item_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                             worlds?              @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model request_board_items {
+  request_board_item_id                                                                            String                  @id
+  fv_request_board_item_id                                                                         String
+  request_board_item_request_id                                                                    Int
+  request_board_item_request_type                                                                  String
+  request_board_item_target_type                                                                   String
+  request_board_item_request_duration                                                              Int
+  request_board_item_requested_quantity                                                            Int
+  request_board_item_reward_item_quality                                                           Int
+  world_id                                                                                         String?
+  game_time_id                                                                                     String?
+  creature_id                                                                                      String?
+  request_board_item_requested_item_type_id                                                        String?
+  request_board_item_requested_resource_type_id                                                    String?
+  request_board_item_reward_item_type_id                                                           String?
+  request_board_item_reward_resource_type_id                                                       String?
+  request_board_actions                                                                            request_board_actions[]
+  creatures                                                                                        creatures?              @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                                                                                       game_times?             @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  item_types_request_board_items_request_board_item_requested_item_type_idToitem_types             item_types?             @relation("request_board_items_request_board_item_requested_item_type_idToitem_types", fields: [request_board_item_requested_item_type_id], references: [item_type_id], onDelete: NoAction, onUpdate: NoAction)
+  resource_types_request_board_items_request_board_item_requested_resource_type_idToresource_types resource_types?         @relation("request_board_items_request_board_item_requested_resource_type_idToresource_types", fields: [request_board_item_requested_resource_type_id], references: [resource_type_id], onDelete: NoAction, onUpdate: NoAction)
+  item_types_request_board_items_request_board_item_reward_item_type_idToitem_types                item_types?             @relation("request_board_items_request_board_item_reward_item_type_idToitem_types", fields: [request_board_item_reward_item_type_id], references: [item_type_id], onDelete: NoAction, onUpdate: NoAction)
+  resource_types_request_board_items_request_board_item_reward_resource_type_idToresource_types    resource_types?         @relation("request_board_items_request_board_item_reward_resource_type_idToresource_types", fields: [request_board_item_reward_resource_type_id], references: [resource_type_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                                                                           worlds?                 @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model treatment_actions {
+  treatment_action_id                String      @id
+  fv_treatment_action_id             Int
+  treatment_action_time              DateTime    @db.Timestamp(6)
+  treatment_action_health_effect     Decimal     @db.Decimal
+  treatment_action_mood_effect       Decimal     @db.Decimal
+  treatment_action_social_effect     Decimal     @db.Decimal
+  treatment_action_cured             Boolean
+  treatment_action_room_id           Int
+  treatment_action_sickness_category String
+  treatment_action_sickness_name     String
+  world_id                           String?
+  game_time_id                       String?
+  player_id                          String?
+  creature_id                        String?
+  item_id                            String?
+  creatures                          creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                         game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  items                              items?      @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  players                            players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                             worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model creature_interaction_events {
+  creature_interaction_event_id     String      @id @db.VarChar(255)
+  fv_creature_interaction_event_id  Int?
+  creature_interaction_event_time   DateTime    @db.Timestamp(6)
+  creature_interaction_event_health Float
+  creature_interaction_event_mood   Float
+  creature_interaction_event_social Float
+  world_id                          String?     @db.VarChar(255)
+  game_time_id                      String?     @db.VarChar(255)
+  player_id                         String?     @db.VarChar(255)
+  creature_id                       String?     @db.VarChar(255)
+  area_id                           String?     @db.VarChar(255)
+  areas                             areas?      @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  creatures                         creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                        game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                           players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                            worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model creature_stats_events {
+  creature_stats_event_id     String      @id @db.VarChar(255)
+  fv_creature_stats_event_id  Int?
+  creature_stats_event_time   DateTime    @db.Timestamp(6)
+  creature_stats_event_health Float
+  creature_stats_event_mood   Float
+  creature_stats_event_social Float
+  world_id                    String?     @db.VarChar(255)
+  game_time_id                String?     @db.VarChar(255)
+  creature_id                 String?     @db.VarChar(255)
+  creatures                   creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                  game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                      worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model medical_room_send_events {
+  medical_room_send_event_id          String      @id @db.VarChar(255)
+  fv_medical_room_send_event_id       Int?
+  medical_room_send_event_time        DateTime    @db.Timestamp(6)
+  medical_room_send_event_room_number Int
+  world_id                            String?     @db.VarChar(255)
+  game_time_id                        String?     @db.VarChar(255)
+  player_id                           String?     @db.VarChar(255)
+  creature_id                         String?     @db.VarChar(255)
+  creatures                           creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                          game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                             players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                              worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model patch_measure_events {
+  patch_measure_event_id    String      @id @db.VarChar(255)
+  fv_patch_measure_event_id Int?
+  patch_measure_event_time  DateTime    @db.Timestamp(6)
+  patch_water_value         Float
+  patch_water_level         String      @db.VarChar(255)
+  patch_sun_level           String      @db.VarChar(255)
+  world_id                  String?     @db.VarChar(255)
+  game_time_id              String?     @db.VarChar(255)
+  player_id                 String?     @db.VarChar(255)
+  patch_id                  String?     @db.VarChar(255)
+  area_id                   String?     @db.VarChar(255)
+  areas                     areas?      @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  patches                   patches?    @relation(fields: [patch_id], references: [patch_id], onDelete: NoAction, onUpdate: NoAction)
+  players                   players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                    worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model player_trade_item_events {
+  player_trade_item_event_id                                    String      @id @db.VarChar(255)
+  fv_player_trade_item_event_id                                 Int?
+  player_trade_item_event_time                                  DateTime    @db.Timestamp(6)
+  player_trade_item_event_pos_x                                 Float
+  player_trade_item_event_pos_y                                 Float
+  world_id                                                      String?     @db.VarChar(255)
+  game_time_id                                                  String?     @db.VarChar(255)
+  player_id                                                     String?     @db.VarChar(255)
+  receiving_player_id                                           String?     @db.VarChar(255)
+  item_id                                                       String?     @db.VarChar(255)
+  area_id                                                       String?     @db.VarChar(255)
+  areas                                                         areas?      @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                                                    game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  items                                                         items?      @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  players_player_trade_item_events_player_idToplayers           players?    @relation("player_trade_item_events_player_idToplayers", fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  players_player_trade_item_events_receiving_player_idToplayers players?    @relation("player_trade_item_events_receiving_player_idToplayers", fields: [receiving_player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                                                        worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rune_minigame_events {
+  rune_minigame_event_id     String      @id @db.VarChar(255)
+  fv_rune_minigame_event_id  Int?
+  rune_minigame_event_time   DateTime    @db.Timestamp(6)
+  crafting_cancelled         Boolean
+  average_input_item_quality Float
+  grid_size                  Int
+  wrong_connections_tried    Int
+  world_id                   String?     @db.VarChar(255)
+  game_time_id               String?     @db.VarChar(255)
+  player_id                  String?     @db.VarChar(255)
+  game_times                 game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                    players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                     worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model sickness_events {
+  sickness_event_id    String      @id @db.VarChar(255)
+  fv_sickness_event_id Int?
+  sickness_event_time  DateTime    @db.Timestamp(6)
+  sickness_category    Int
+  world_id             String?     @db.VarChar(255)
+  game_time_id         String?     @db.VarChar(255)
+  creature_id          String?     @db.VarChar(255)
+  area_id              String?     @db.VarChar(255)
+  areas                areas?      @relation(fields: [area_id], references: [area_id], onDelete: NoAction, onUpdate: NoAction)
+  creatures            creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times           game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds               worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model smashing_minigame_events {
+  smashing_minigame_event_id    String      @id @db.VarChar(255)
+  fv_smashing_minigame_event_id Int?
+  smashing_minigame_event_time  DateTime    @db.Timestamp(6)
+  crafting_cancelled            Boolean
+  average_input_item_quality    Float
+  output_item_quality           Float
+  first_smash_distance          Float
+  second_smash_distance         Float
+  third_smash_distance          Float
+  world_id                      String?     @db.VarChar(255)
+  game_time_id                  String?     @db.VarChar(255)
+  player_id                     String?     @db.VarChar(255)
+  item_id                       String?     @db.VarChar(255)
+  game_times                    game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  items                         items?      @relation(fields: [item_id], references: [item_id], onDelete: NoAction, onUpdate: NoAction)
+  players                       players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                        worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model triage_events {
+  triage_event_id                String      @id @db.VarChar(255)
+  fv_triage_event_id             Int?
+  triage_event_time              DateTime    @db.Timestamp(6)
+  triage_event_sickness_category Int
+  triage_event_sickness_name     Int
+  world_id                       String?     @db.VarChar(255)
+  game_time_id                   String?     @db.VarChar(255)
+  player_id                      String?     @db.VarChar(255)
+  creature_id                    String?     @db.VarChar(255)
+  creatures                      creatures?  @relation(fields: [creature_id], references: [creature_id], onDelete: NoAction, onUpdate: NoAction)
+  game_times                     game_times? @relation(fields: [game_time_id], references: [game_time_id], onDelete: NoAction, onUpdate: NoAction)
+  players                        players?    @relation(fields: [player_id], references: [player_id], onDelete: NoAction, onUpdate: NoAction)
+  worlds                         worlds?     @relation(fields: [world_id], references: [world_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@schema("public")
 }
@@ -1111,6 +1499,7 @@ enum factor_status {
 enum factor_type {
   totp
   webauthn
+  phone
 
   @@schema("auth")
 }
