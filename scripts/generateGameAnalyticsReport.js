@@ -449,10 +449,62 @@ function generateSessionTimelineView(session) {
     return `<div class="info-box">No detailed event data available for this session.</div>`;
   }
 
+  // Ensure sessionStart is a Date object
+  const sessionStart = new Date(session.startTime);
+  const sessionEnd = new Date(session.endTime);
+  const sessionDurationMs = sessionEnd.getTime() - sessionStart.getTime();
+  const sessionDurationMin = Math.round(sessionDurationMs / 60000);
+
+  console.log("Session Start Time:", session.startTime);
+  console.log("Session End Time:", session.endTime);
+
+  if (!(sessionStart instanceof Date) || !(sessionEnd instanceof Date)) {
+    console.error("Invalid date format for session start or end time.");
+  }
+
   // Sort events chronologically
   const sortedEvents = [...session.events].sort(
     (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
   );
+
+  // Validate timestamps and log any issues
+  console.group("Timestamp validation for session", session.sessionId);
+  const invalidTimestamps = sortedEvents.filter((event) => {
+    const timestamp = new Date(event.timestamp);
+    return isNaN(timestamp.getTime());
+  });
+
+  // Check if all timestamps are invalid - this is a serious problem
+  const allTimestampsInvalid = invalidTimestamps.length === sortedEvents.length;
+  if (allTimestampsInvalid) {
+    console.error(
+      "ALL timestamps are invalid. Generating synthetic timestamps."
+    );
+
+    // Generate synthetic timestamps evenly distributed across the session duration
+    const sessionDuration = sessionEnd.getTime() - sessionStart.getTime();
+    sortedEvents.forEach((event, index) => {
+      // Create a synthetic timestamp by distributing events evenly across the session
+      const syntheticTime = new Date(
+        sessionStart.getTime() +
+          sessionDuration * (index / (sortedEvents.length - 1 || 1))
+      );
+      event.timestamp = syntheticTime.toISOString();
+    });
+  } else if (invalidTimestamps.length > 0) {
+    console.error("Invalid timestamps detected:", invalidTimestamps);
+  }
+
+  // Check for events outside session bounds
+  const eventsOutOfBounds = sortedEvents.filter((event) => {
+    const timestamp = new Date(event.timestamp);
+    return timestamp < sessionStart || timestamp > sessionEnd;
+  });
+
+  if (eventsOutOfBounds.length > 0) {
+    console.warn("Events outside session time bounds:", eventsOutOfBounds);
+  }
+  console.groupEnd();
 
   // Group consecutive similar actions to reduce clutter
   const groupedEvents = [];
@@ -463,6 +515,38 @@ function generateSessionTimelineView(session) {
     count: 1,
     events: [sortedEvents[0]],
   };
+
+  // Ensure the currentGroup has valid timestamps, even if they're synthetic
+  if (isNaN(currentGroup.startTime.getTime())) {
+    console.error("First group has invalid timestamps even after correction");
+    // Last resort fallback - use session start time
+    currentGroup.startTime = new Date(sessionStart);
+    currentGroup.endTime = new Date(sessionStart);
+  }
+
+  // Debug the first event timestamp
+  console.log("First event timestamp type:", typeof sortedEvents[0].timestamp);
+  console.log("First event timestamp value:", sortedEvents[0].timestamp);
+  console.log(
+    "First event timestamp as Date:",
+    new Date(sortedEvents[0].timestamp)
+  );
+  console.log(
+    "First event timestamp as number:",
+    new Date(sortedEvents[0].timestamp).getTime()
+  );
+  console.log("Current group startTime:", currentGroup.startTime);
+  console.log("Current group startTime type:", typeof currentGroup.startTime);
+  console.log(
+    "Current group startTime is Date?",
+    currentGroup.startTime instanceof Date
+  );
+  console.log(
+    "Current group startTime getTime:",
+    currentGroup.startTime.getTime
+      ? currentGroup.startTime.getTime()
+      : "getTime not available"
+  );
 
   for (let i = 1; i < sortedEvents.length; i++) {
     const event = sortedEvents[i];
@@ -517,12 +601,6 @@ function generateSessionTimelineView(session) {
   // Get unique event types for the filter
   const uniqueEventTypes = [...new Set(sortedEvents.map((e) => e.event_type))];
 
-  // Calculate session duration in minutes
-  const sessionStart = new Date(session.startTime);
-  const sessionEnd = new Date(session.endTime);
-  const sessionDurationMs = sessionEnd - sessionStart;
-  const sessionDurationMin = Math.round(sessionDurationMs / 60000);
-
   // Build HTML for the timeline - don't include outer containers that will be provided by parent
   return `
     <div class="timeline-filters">
@@ -537,6 +615,59 @@ function generateSessionTimelineView(session) {
       <small>Timeline shows ${sessionDurationMin} minutes with ${sortedEvents.length} events</small>
     </div>
     
+    <script>
+      // Debug information for session timeline - using IIFE to avoid variable conflicts
+      (function() {
+        console.group('Timeline Debug Info - Session ${session.sessionId}');
+        console.log('Session start time:', '${session.startTime}');
+        console.log('Session end time:', '${session.endTime}');
+        console.log('Session duration (ms):', ${sessionDurationMs});
+        console.log('Number of original events:', ${sortedEvents.length});
+        console.log('Number of grouped events:', ${groupedEvents.length});
+        
+        // Log all event positions - using session-specific variable name
+        const eventPositions_${session.sessionId.replace(/[^a-zA-Z0-9]/g, "_")} = [];
+        
+        ${groupedEvents
+          .map((group, index) => {
+            const startTimeMs =
+              group.startTime instanceof Date
+                ? group.startTime.getTime()
+                : new Date(group.startTime).getTime();
+            const sessionStartMs = sessionStart.getTime();
+            const timeFromStart = startTimeMs - sessionStartMs;
+
+            // Safety check for position calculation
+            let positionPercent = 0;
+            if (
+              !isNaN(startTimeMs) &&
+              timeFromStart >= 0 &&
+              sessionDurationMs > 0
+            ) {
+              positionPercent = (timeFromStart / sessionDurationMs) * 100;
+              positionPercent = Math.max(0, Math.min(100, positionPercent));
+            } else {
+              // When timestamp is invalid, distribute events evenly based on their index
+              positionPercent = (index / (groupedEvents.length - 1 || 1)) * 100;
+            }
+
+            return `eventPositions_${session.sessionId.replace(/[^a-zA-Z0-9]/g, "_")}.push({
+              index: ${index},
+              type: "${group.event_type}",
+              timestamp: "${group.startTime}",
+              startTimeMs: ${startTimeMs},
+              timeFromStart: ${timeFromStart},
+              positionPercent: ${positionPercent.toFixed(2)},
+              count: ${group.count}
+            });`;
+          })
+          .join("\n        ")}
+        
+        console.table(eventPositions_${session.sessionId.replace(/[^a-zA-Z0-9]/g, "_")});
+        console.groupEnd();
+      })();
+    </script>
+    
     <div class="timeline-legend">
       <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.data}"></span> Data Actions</div>
       <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.movement}"></span> Movement</div>
@@ -549,15 +680,96 @@ function generateSessionTimelineView(session) {
             .map((group, index) => {
               const category = getEventCategory(group.event_type);
               const color = categoryColors[category];
-              const startTime = group.startTime.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              });
+
+              // Try to get a valid time representation for the tooltip
+              let startTime;
+              try {
+                startTime = group.startTime.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                });
+              } catch (e) {
+                // Fallback if toLocaleTimeString fails
+                startTime = "Unknown Time";
+              }
 
               // Calculate the position based on time since session start
-              const timeFromStart = group.startTime - sessionStart;
-              const positionPercent = (timeFromStart / sessionDurationMs) * 100;
+              let startTimeMs;
+
+              // Handle different timestamp formats
+              if (group.startTime instanceof Date) {
+                startTimeMs = group.startTime.getTime();
+              } else if (typeof group.startTime === "string") {
+                // Try parsing ISO string or other string formats
+                try {
+                  startTimeMs = new Date(group.startTime).getTime();
+                } catch (e) {
+                  console.error(
+                    "Error parsing date from string:",
+                    group.startTime,
+                    e
+                  );
+                  startTimeMs = NaN;
+                }
+              } else if (
+                typeof group.startTime === "object" &&
+                group.startTime !== null
+              ) {
+                // Handle case where startTime is an object with toString method
+                try {
+                  startTimeMs = new Date(group.startTime.toString()).getTime();
+                } catch (e) {
+                  console.error(
+                    "Error parsing date from object:",
+                    group.startTime,
+                    e
+                  );
+                  startTimeMs = NaN;
+                }
+              } else {
+                // Fallback - try direct conversion
+                startTimeMs = Number(group.startTime);
+              }
+
+              // Log the value we're using
+              console.log(`Event ${group.event_type} startTime:`, {
+                original: group.startTime,
+                type: typeof group.startTime,
+                isDate: group.startTime instanceof Date,
+                startTimeMs,
+              });
+
+              const sessionStartMs = sessionStart.getTime();
+              const timeFromStart = startTimeMs - sessionStartMs;
+
+              // Safety check - ensure timeFromStart is not negative and sessionDurationMs is positive
+              let positionPercent = 0;
+              if (
+                !isNaN(startTimeMs) &&
+                timeFromStart >= 0 &&
+                sessionDurationMs > 0
+              ) {
+                positionPercent = (timeFromStart / sessionDurationMs) * 100;
+
+                // Clamp to 0-100% range to avoid positioning issues
+                positionPercent = Math.max(0, Math.min(100, positionPercent));
+              } else {
+                console.warn(
+                  `Invalid position calculation for event ${group.event_type}:`,
+                  {
+                    startTime: group.startTime,
+                    startTimeMs,
+                    sessionStartMs,
+                    timeFromStart,
+                    sessionDurationMs,
+                  }
+                );
+
+                // When timestamp is invalid, distribute events evenly based on their index
+                positionPercent =
+                  (index / (groupedEvents.length - 1 || 1)) * 100;
+              }
 
               // For tooltip content
               const eventDetails = group.events
@@ -611,6 +823,8 @@ function generateSessionTimelineView(session) {
                 style="left: ${positionPercent}%; background-color: ${color};"
                 title="${startTime}: ${eventDisplay}"
                 data-toggle="tooltip"
+                data-position="${positionPercent.toFixed(2)}%"
+                data-timestamp="${group.startTime}"
               >
                 <div class="event-tooltip">
                   <div class="event-tooltip-header">${group.event_type} (${group.count})</div>
@@ -1018,6 +1232,7 @@ function generateHtmlReport(
           border-radius: 4px;
           margin-bottom: 20px;
           border: 1px solid #ddd;
+          overflow: visible; /* Allow event tooltips to overflow */
         }
         .timeline-event {
           position: absolute;
@@ -1025,11 +1240,14 @@ function generateHtmlReport(
           width: 8px;
           height: 60px;
           border-radius: 4px;
-          transform: translateX(-50%);
+          transform: none; /* No transform to ensure correct positioning */
           cursor: pointer;
+          z-index: 1; /* Base z-index for normal state */
+          /* Add debugging outline */
+          outline: 1px dashed rgba(255,0,0,0.3);
         }
         .timeline-event:hover {
-          z-index: 10;
+          z-index: 10; /* Higher z-index on hover to ensure tooltip visibility */
         }
         .timeline-event:hover .event-tooltip {
           display: block;
@@ -1038,8 +1256,8 @@ function generateHtmlReport(
           display: none;
           position: absolute;
           bottom: calc(100% + 5px);
-          left: 50%;
-          transform: translateX(-50%);
+          left: 4px; /* Changed from 50% */
+          transform: translateX(-50%); /* Keep this to center the tooltip */
           background-color: white;
           min-width: 250px;
           max-width: 400px;
@@ -1090,7 +1308,7 @@ function generateHtmlReport(
         }
         .time-marker {
           position: absolute;
-          transform: translateX(-50%);
+          transform: translateX(-4px); /* Changed from translateX(-50%) to match timeline-event fix */
         }
         .marker-time {
           font-size: 10px;
@@ -1231,13 +1449,199 @@ function generateHtmlReport(
           const timelineContainer = document.querySelector('.timeline-container[data-session-id="' + sessionId + '"]');
           const events = timelineContainer.querySelectorAll('.timeline-event');
           
+          console.group('Timeline Filtering - Session ' + sessionId);
+          console.log('Filtering by type:', selectedType);
+          console.log('Total events:', events.length);
+          
+          let visibleCount = 0;
           events.forEach(event => {
-            if (selectedType === 'all' || event.classList.contains('event-type-' + selectedType)) {
-              event.style.display = 'block';
-            } else {
-              event.style.display = 'none';
-            }
+            const eventType = event.className.split('event-type-')[1].split(' ')[0];
+            const position = event.getAttribute('data-position');
+            const timestamp = event.getAttribute('data-timestamp');
+            
+            const shouldShow = selectedType === 'all' || event.classList.contains('event-type-' + selectedType);
+            event.style.display = shouldShow ? 'block' : 'none';
+            
+            if (shouldShow) visibleCount++;
+            
+            console.log({
+              eventType,
+              position,
+              timestamp,
+              visible: shouldShow
+            });
           });
+          
+          console.log('Visible events after filtering:', visibleCount);
+          console.groupEnd();
+        }
+
+        // Debug timeline grid and positions
+        function toggleTimelineDebug(sessionId) {
+          const timelineContainer = document.querySelector('.timeline-container[data-session-id="' + sessionId + '"]');
+          const timelineEvents = timelineContainer.querySelector('.timeline-events');
+          
+          // Toggle debug class
+          timelineEvents.classList.toggle('debug-mode');
+          
+          if (timelineEvents.classList.contains('debug-mode')) {
+            console.group('Timeline Debug - Session ' + sessionId);
+            
+            // Check for CSS transform issues
+            const computedStyle = window.getComputedStyle(timelineEvents);
+            console.log('Timeline container styles:', {
+              position: computedStyle.position,
+              width: computedStyle.width,
+              height: computedStyle.height,
+              transform: computedStyle.transform
+            });
+            
+            // Create debug summary area if it doesn't exist
+            if (!timelineContainer.querySelector('.debug-summary')) {
+              const debugSummary = document.createElement('div');
+              debugSummary.className = 'debug-summary';
+              debugSummary.style.padding = '10px';
+              debugSummary.style.border = '1px solid red';
+              debugSummary.style.margin = '10px 0';
+              debugSummary.style.backgroundColor = '#ffeeee';
+              debugSummary.style.fontFamily = 'monospace';
+              debugSummary.style.fontSize = '12px';
+              debugSummary.style.whiteSpace = 'pre-wrap';
+              debugSummary.innerHTML = '<h3>Timeline Debug Information</h3>';
+              
+              const events = timelineEvents.querySelectorAll('.timeline-event');
+              const debugInfo = [];
+              events.forEach(event => {
+                const timestamp = event.getAttribute('data-timestamp');
+                const position = event.getAttribute('data-position');
+                const eventType = event.className.split('event-type-')[1].split(' ')[0];
+                
+                // Try to parse timestamp
+                let timestampMs = 'N/A';
+                try {
+                  timestampMs = new Date(timestamp).getTime();
+                } catch (e) {}
+                
+                debugInfo.push('Event: ' + eventType + ', Timestamp: ' + timestamp + ', Position: ' + position + ', Parsed Time: ' + timestampMs);
+              });
+              
+              debugSummary.innerHTML += '<div>' + debugInfo.join('<br>') + '</div>';
+              timelineContainer.insertBefore(debugSummary, timelineEvents);
+            }
+            
+            // Add debug grid if in debug mode
+            if (!timelineEvents.querySelector('.debug-grid')) {
+              const debugGrid = document.createElement('div');
+              debugGrid.className = 'debug-grid';
+              debugGrid.style.position = 'absolute';
+              debugGrid.style.top = '0';
+              debugGrid.style.left = '0';
+              debugGrid.style.width = '100%';
+              debugGrid.style.height = '100%';
+              debugGrid.style.pointerEvents = 'none';
+              debugGrid.style.zIndex = '5';
+              
+              // Add grid lines for every 10%
+              for (let i = 0; i <= 100; i += 10) {
+                const gridLine = document.createElement('div');
+                gridLine.style.position = 'absolute';
+                gridLine.style.top = '0';
+                gridLine.style.left = i + '%';
+                gridLine.style.width = '1px';
+                gridLine.style.height = '100%';
+                gridLine.style.background = 'rgba(255,0,0,0.3)';
+                
+                const label = document.createElement('div');
+                label.style.position = 'absolute';
+                label.style.top = '0';
+                label.style.left = '2px';
+                label.style.fontSize = '9px';
+                label.style.color = 'red';
+                label.textContent = i + '%';
+                
+                gridLine.appendChild(label);
+                debugGrid.appendChild(gridLine);
+              }
+              
+              timelineEvents.appendChild(debugGrid);
+              
+              // Check if events have proper positioning
+              const events = timelineEvents.querySelectorAll('.timeline-event');
+              
+              console.log('Number of events:', events.length);
+              
+              // Track positions to detect overlaps
+              const positionsTaken = {};
+              
+              events.forEach(event => {
+                const position = event.getAttribute('data-position');
+                const timestamp = event.getAttribute('data-timestamp');
+                const boundingRect = event.getBoundingClientRect();
+                const computedStyles = window.getComputedStyle(event);
+                
+                // Check for duplicated positions
+                if (positionsTaken[position]) {
+                  console.warn('DUPLICATE POSITION DETECTED:', position);
+                  positionsTaken[position].push(timestamp);
+                } else {
+                  positionsTaken[position] = [timestamp];
+                }
+                
+                // Add position label for debugging
+                const posLabel = document.createElement('div');
+                posLabel.className = 'debug-pos-label';
+                posLabel.style.position = 'absolute';
+                posLabel.style.bottom = '-15px';
+                posLabel.style.left = '0';
+                posLabel.style.fontSize = '9px';
+                posLabel.style.color = 'blue';
+                posLabel.style.whiteSpace = 'nowrap';
+                posLabel.textContent = position;
+                event.appendChild(posLabel);
+                
+                // Apply a temporary high z-index to make this event visible over others
+                const originalZIndex = event.style.zIndex;
+                event.style.zIndex = '10';
+                setTimeout(() => { event.style.zIndex = originalZIndex || ''; }, 500);
+                
+                // Log event info
+                console.log({
+                  position,
+                  timestamp,
+                  leftStyle: event.style.left,
+                  computedLeft: computedStyles.left,
+                  width: computedStyles.width,
+                  transform: computedStyles.transform,
+                  boundingRect: {
+                    left: boundingRect.left,
+                    width: boundingRect.width,
+                    right: boundingRect.right
+                  }
+                });
+              });
+              
+              // Log any position duplicates
+              const duplicatePositions = Object.entries(positionsTaken)
+                .filter(([pos, timestamps]) => timestamps.length > 1);
+              
+              if (duplicatePositions.length > 0) {
+                console.warn('Duplicate positions detected:', duplicatePositions);
+              }
+            }
+            
+            console.groupEnd();
+          } else {
+            // Remove debug elements when toggling off
+            const debugGrid = timelineEvents.querySelector('.debug-grid');
+            if (debugGrid) {
+              timelineEvents.removeChild(debugGrid);
+            }
+            
+            const posLabels = timelineEvents.querySelectorAll('.debug-pos-label');
+            posLabels.forEach(label => {
+              label.parentNode.removeChild(label);
+            });
+          }
         }
       </script>
     </head>
@@ -1491,7 +1895,10 @@ function generateHtmlReport(
                       <span>${item.playerName} - ${formattedDate} ${formattedTime}</span>
                       <span class="session-id">ID: ${sessionId}</span>
                     </div>
-                    <button class="timeline-toggle">Collapse <span class="timeline-toggle-icon">▲</span></button>
+                    <div style="display: flex; gap: 10px;">
+                      <button class="debug-toggle" onclick="toggleTimelineDebug('${sessionId}')">Debug Timeline</button>
+                      <button class="timeline-toggle">Collapse <span class="timeline-toggle-icon">▲</span></button>
+                    </div>
                   </div>
                   <div class="timeline-container" data-session-id="${sessionId}">
                     ${generateSessionTimelineView(item.session)}
