@@ -434,6 +434,223 @@ function analyzeSessionData(sessionData) {
 }
 
 /**
+ * Generate a visual timeline of session events
+ *
+ * This function:
+ * 1. Processes session.events to extract chronological sequences
+ * 2. Color-codes different action types (game vs data actions)
+ * 3. Creates a visual timeline showing action sequences
+ * 4. Includes timestamps to show timing between actions
+ * 5. Groups similar consecutive actions to avoid clutter
+ * 6. Adds filtering capabilities to focus on specific action types
+ */
+function generateSessionTimelineView(session) {
+  if (!session.events || session.events.length === 0) {
+    return `<div class="info-box">No detailed event data available for this session.</div>`;
+  }
+
+  // Sort events chronologically
+  const sortedEvents = [...session.events].sort(
+    (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+  );
+
+  // Group consecutive similar actions to reduce clutter
+  const groupedEvents = [];
+  let currentGroup = {
+    event_type: sortedEvents[0].event_type,
+    startTime: new Date(sortedEvents[0].timestamp),
+    endTime: new Date(sortedEvents[0].timestamp),
+    count: 1,
+    events: [sortedEvents[0]],
+  };
+
+  for (let i = 1; i < sortedEvents.length; i++) {
+    const event = sortedEvents[i];
+    const eventTime = new Date(event.timestamp);
+
+    // If same type as previous and within 10 seconds, group together
+    if (
+      event.event_type === currentGroup.event_type &&
+      eventTime - currentGroup.endTime < 10000 // 10 seconds in ms
+    ) {
+      currentGroup.endTime = eventTime;
+      currentGroup.count++;
+      currentGroup.events.push(event);
+    } else {
+      // Finish current group and start a new one
+      groupedEvents.push(currentGroup);
+      currentGroup = {
+        event_type: event.event_type,
+        startTime: eventTime,
+        endTime: eventTime,
+        count: 1,
+        events: [event],
+      };
+    }
+  }
+
+  // Add the last group
+  groupedEvents.push(currentGroup);
+
+  // Determine event categories for color-coding
+  const getEventCategory = (eventType) => {
+    if (eventType.startsWith("data_")) return "data";
+    if (eventType === "movement") return "movement";
+    if (
+      eventType.includes("craft") ||
+      eventType.includes("foraging") ||
+      eventType.includes("collect") ||
+      eventType.includes("harvest")
+    )
+      return "gathering";
+    return "game";
+  };
+
+  // Map categories to colors
+  const categoryColors = {
+    data: "#9c27b0", // purple
+    movement: "#2196f3", // blue
+    gathering: "#4caf50", // green
+    game: "#ff9800", // orange
+  };
+
+  // Get unique event types for the filter
+  const uniqueEventTypes = [...new Set(sortedEvents.map((e) => e.event_type))];
+
+  // Calculate session duration in minutes
+  const sessionStart = new Date(session.startTime);
+  const sessionEnd = new Date(session.endTime);
+  const sessionDurationMs = sessionEnd - sessionStart;
+  const sessionDurationMin = Math.round(sessionDurationMs / 60000);
+
+  // Build HTML for the timeline - don't include outer containers that will be provided by parent
+  return `
+    <div class="timeline-filters">
+      <label>Filter by event type:</label>
+      <select class="event-type-filter" onchange="filterTimelineEvents(this, '${session.sessionId}')">
+        <option value="all">All Events</option>
+        ${uniqueEventTypes.map((type) => `<option value="${type}">${type}</option>`).join("")}
+      </select>
+    </div>
+    
+    <div class="timeline-info">
+      <small>Timeline shows ${sessionDurationMin} minutes with ${sortedEvents.length} events</small>
+    </div>
+    
+    <div class="timeline-legend">
+      <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.data}"></span> Data Actions</div>
+      <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.movement}"></span> Movement</div>
+      <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.gathering}"></span> Gathering/Crafting</div>
+      <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.game}"></span> Other Game Actions</div>
+    </div>
+        
+        <div class="timeline-events">
+          ${groupedEvents
+            .map((group, index) => {
+              const category = getEventCategory(group.event_type);
+              const color = categoryColors[category];
+              const startTime = group.startTime.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              });
+
+              // Calculate the position based on time since session start
+              const timeFromStart = group.startTime - sessionStart;
+              const positionPercent = (timeFromStart / sessionDurationMs) * 100;
+
+              // For tooltip content
+              const eventDetails = group.events
+                .map((evt) => {
+                  // Format details for display
+                  let detailsStr = "";
+                  if (evt.details) {
+                    try {
+                      // If it's a string, try to parse it as JSON
+                      if (typeof evt.details === "string") {
+                        const details = JSON.parse(evt.details);
+                        detailsStr = Object.entries(details)
+                          .map(
+                            ([key, value]) => `${key}: ${JSON.stringify(value)}`
+                          )
+                          .join(", ");
+                      }
+                      // If it's already an object
+                      else if (typeof evt.details === "object") {
+                        detailsStr = Object.entries(evt.details)
+                          .map(
+                            ([key, value]) => `${key}: ${JSON.stringify(value)}`
+                          )
+                          .join(", ");
+                      }
+                    } catch (e) {
+                      // If parsing fails, use the original string
+                      detailsStr = String(evt.details);
+                    }
+                  }
+
+                  return `
+                <div class="event-detail">
+                  <div class="event-time">${new Date(evt.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</div>
+                  <div class="event-type">${evt.event_type}</div>
+                  ${detailsStr ? `<div class="event-props">${detailsStr}</div>` : ""}
+                </div>
+              `;
+                })
+                .join("");
+
+              // Display single or grouped events differently
+              const eventDisplay =
+                group.count > 1
+                  ? `${group.event_type} (${group.count})`
+                  : group.event_type;
+
+              return `
+              <div 
+                class="timeline-event event-type-${group.event_type}" 
+                style="left: ${positionPercent}%; background-color: ${color};"
+                title="${startTime}: ${eventDisplay}"
+                data-toggle="tooltip"
+              >
+                <div class="event-tooltip">
+                  <div class="event-tooltip-header">${group.event_type} (${group.count})</div>
+                  <div class="event-tooltip-body">
+                    ${eventDetails}
+                  </div>
+                </div>
+              </div>
+            `;
+            })
+            .join("")}
+        </div>
+        
+        <div class="timeline-axis">
+          ${(() => {
+            // Create time markers at regular intervals
+            const markers = [];
+            const numMarkers = 10; // Number of time markers to show
+
+            for (let i = 0; i <= numMarkers; i++) {
+              const markerTime = new Date(
+                sessionStart.getTime() + sessionDurationMs * (i / numMarkers)
+              );
+              const markerPosition = (i / numMarkers) * 100;
+              markers.push(`
+                <div class="time-marker" style="left: ${markerPosition}%">
+                  <div class="marker-time">${markerTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                </div>
+              `);
+            }
+
+            return markers.join("");
+          })()}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Analyze player activity timeline data
  *
  * Metrics calculated:
@@ -732,6 +949,176 @@ function generateHtmlReport(
           font-size: 14px;
         }
         
+        /* Session Timeline Styles */
+        .session-timeline {
+          margin-bottom: 30px;
+          background-color: white;
+          border-radius: 5px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          overflow: hidden;
+        }
+        .session-timeline.collapsed .timeline-container {
+          display: none;
+        }
+        .timeline-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 15px;
+          background-color: #f8f9fa;
+          border-bottom: 1px solid #ddd;
+        }
+        .timeline-title {
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .timeline-title .session-id {
+          font-size: 11px;
+          font-family: monospace;
+          color: #777;
+        }
+        .timeline-filters {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .timeline-filters select {
+          padding: 4px 8px;
+          border-radius: 4px;
+          border: 1px solid #ddd;
+        }
+        .timeline-container {
+          padding: 15px;
+          position: relative;
+        }
+        .timeline-legend {
+          display: flex;
+          gap: 15px;
+          margin-bottom: 10px;
+        }
+        .legend-item {
+          display: flex;
+          align-items: center;
+          font-size: 12px;
+          color: #666;
+        }
+        .legend-color {
+          display: inline-block;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          margin-right: 4px;
+        }
+        .timeline-events {
+          height: 80px;
+          position: relative;
+          background-color: #f8f9fa;
+          border-radius: 4px;
+          margin-bottom: 20px;
+          border: 1px solid #ddd;
+        }
+        .timeline-event {
+          position: absolute;
+          top: 10px;
+          width: 8px;
+          height: 60px;
+          border-radius: 4px;
+          transform: translateX(-50%);
+          cursor: pointer;
+        }
+        .timeline-event:hover {
+          z-index: 10;
+        }
+        .timeline-event:hover .event-tooltip {
+          display: block;
+        }
+        .event-tooltip {
+          display: none;
+          position: absolute;
+          bottom: calc(100% + 5px);
+          left: 50%;
+          transform: translateX(-50%);
+          background-color: white;
+          min-width: 250px;
+          max-width: 400px;
+          border-radius: 4px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+          z-index: 100;
+          font-size: 12px;
+          overflow: hidden;
+        }
+        .event-tooltip-header {
+          background-color: #f0f0f0;
+          padding: 8px 10px;
+          font-weight: 600;
+          color: #444;
+          border-bottom: 1px solid #ddd;
+        }
+        .event-tooltip-body {
+          padding: 10px;
+          max-height: 300px;
+          overflow-y: auto;
+        }
+        .event-detail {
+          padding: 6px 0;
+          border-bottom: 1px solid #eee;
+        }
+        .event-detail:last-child {
+          border-bottom: none;
+        }
+        .event-time {
+          font-family: monospace;
+          color: #555;
+          margin-bottom: 2px;
+        }
+        .event-type {
+          font-weight: 600;
+          margin-bottom: 2px;
+        }
+        .event-props {
+          font-family: monospace;
+          font-size: 10px;
+          color: #666;
+          word-break: break-word;
+        }
+        .timeline-axis {
+          position: relative;
+          height: 30px;
+          border-top: 1px dashed #ddd;
+        }
+        .time-marker {
+          position: absolute;
+          transform: translateX(-50%);
+        }
+        .marker-time {
+          font-size: 10px;
+          color: #666;
+          margin-top: 4px;
+        }
+        .timeline-toggle {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+          font-size: 14px;
+          color: #3498db;
+          display: flex;
+          align-items: center;
+          margin-left: auto;
+        }
+        .timeline-toggle:hover {
+          text-decoration: underline;
+        }
+        .timeline-toggle-icon {
+          margin-left: 4px;
+          transition: transform 0.2s;
+        }
+        .collapsed .timeline-toggle-icon {
+          transform: rotate(-90deg);
+        }
+        
         /* Tab Navigation Styles */
         .tabs {
           display: flex;
@@ -821,7 +1208,37 @@ function generateHtmlReport(
               window.print();
             });
           }
+          
+          // Initialize timeline toggle buttons
+          const toggleButtons = document.querySelectorAll('.timeline-toggle');
+          toggleButtons.forEach(button => {
+            button.addEventListener('click', function() {
+              const timeline = this.closest('.session-timeline');
+              timeline.classList.toggle('collapsed');
+              
+              // Update button text
+              const isCollapsed = timeline.classList.contains('collapsed');
+              this.innerHTML = isCollapsed 
+                ? 'Expand <span class="timeline-toggle-icon">▼</span>' 
+                : 'Collapse <span class="timeline-toggle-icon">▲</span>';
+            });
+          });
         });
+        
+        // Timeline event filtering
+        function filterTimelineEvents(selectElement, sessionId) {
+          const selectedType = selectElement.value;
+          const timelineContainer = document.querySelector('.timeline-container[data-session-id="' + sessionId + '"]');
+          const events = timelineContainer.querySelectorAll('.timeline-event');
+          
+          events.forEach(event => {
+            if (selectedType === 'all' || event.classList.contains('event-type-' + selectedType)) {
+              event.style.display = 'block';
+            } else {
+              event.style.display = 'none';
+            }
+          });
+        }
       </script>
     </head>
     <body>
@@ -1022,6 +1439,68 @@ function generateHtmlReport(
                 .join("")}
             </tbody>
           </table>
+        </div>
+
+        <div class="section">
+          <h2>Session Action Sequences</h2>
+          <p class="metric-explanation">Visual timeline of player actions within each session, color-coded by action type. Hover over events for details and use the filter to focus on specific action types.</p>
+          
+          ${(() => {
+            // Find up to 10 most recent sessions with event data for displaying timelines
+            let sessionsWithEvents = [];
+            sessionData.playerSessions.forEach((player) => {
+              if (player.sessions) {
+                player.sessions.forEach((session) => {
+                  if (session.events && session.events.length > 0) {
+                    sessionsWithEvents.push({
+                      playerName: player.playerName,
+                      session: session,
+                    });
+                  }
+                });
+              }
+            });
+
+            // Sort by most recent sessions first
+            sessionsWithEvents.sort(
+              (a, b) =>
+                new Date(b.session.startTime) - new Date(a.session.startTime)
+            );
+
+            // Limit to 10 sessions for performance reasons
+            sessionsWithEvents = sessionsWithEvents.slice(0, 10);
+
+            if (sessionsWithEvents.length === 0) {
+              return `<div class="info-box">No detailed session event data available.</div>`;
+            }
+
+            return sessionsWithEvents
+              .map((item) => {
+                const sessionStart = new Date(item.session.startTime);
+                const formattedDate = sessionStart.toLocaleDateString();
+                const formattedTime = sessionStart.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+
+                const sessionId = item.session.sessionId;
+                return `
+                <div class="session-timeline">
+                  <div class="timeline-header">
+                    <div class="timeline-title">
+                      <span>${item.playerName} - ${formattedDate} ${formattedTime}</span>
+                      <span class="session-id">ID: ${sessionId}</span>
+                    </div>
+                    <button class="timeline-toggle">Collapse <span class="timeline-toggle-icon">▲</span></button>
+                  </div>
+                  <div class="timeline-container" data-session-id="${sessionId}">
+                    ${generateSessionTimelineView(item.session)}
+                  </div>
+                </div>
+              `;
+              })
+              .join("");
+          })()}
         </div>
 
         <div class="section">
