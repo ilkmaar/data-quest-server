@@ -65,6 +65,32 @@ const API_URL = process.env.GRAPHQL_API_URL || "http://localhost:4000/graphql";
 const API_KEY = process.env.GRAPHQL_API_KEY;
 const AUTH_URL = process.env.AUTH_URL || "http://localhost:4000/auth/login";
 
+// Define color mapping for event categories
+const categoryColors = {
+  data: "#9c27b0", // purple
+  movement: "#808080", // light grey
+  gathering: "#4caf50", // green
+  treatment: "#e91e63", // pink
+  giving: "#00bcd4", // cyan
+  game: "#ff9800", // orange
+};
+
+// Define event category determination function
+function getEventCategory(eventType) {
+  if (eventType.startsWith("data_")) return "data";
+  if (eventType === "movement") return "movement";
+  if (eventType.includes("treatment")) return "treatment";
+  if (eventType.includes("giving")) return "giving";
+  if (
+    eventType.includes("craft") ||
+    eventType.includes("foraging") ||
+    eventType.includes("collect") ||
+    eventType.includes("harvest")
+  )
+    return "gathering";
+  return "game";
+}
+
 // GraphQL queries
 const PLAYER_SESSION_ANALYTICS_QUERY = `
   query GetPlayerSessionAnalytics($worldId: String!, $startDate: String, $endDate: String) {
@@ -577,9 +603,12 @@ function generateSessionTimelineView(session) {
   groupedEvents.push(currentGroup);
 
   // Determine event categories for color-coding
-  const getEventCategory = (eventType) => {
+  // Remove this duplicate function definition
+  /*const getEventCategory = (eventType) => {
     if (eventType.startsWith("data_")) return "data";
     if (eventType === "movement") return "movement";
+    if (eventType.includes("treatment")) return "treatment";
+    if (eventType.includes("giving")) return "giving";
     if (
       eventType.includes("craft") ||
       eventType.includes("foraging") ||
@@ -588,15 +617,7 @@ function generateSessionTimelineView(session) {
     )
       return "gathering";
     return "game";
-  };
-
-  // Map categories to colors
-  const categoryColors = {
-    data: "#9c27b0", // purple
-    movement: "#2196f3", // blue
-    gathering: "#4caf50", // green
-    game: "#ff9800", // orange
-  };
+  };*/
 
   // Get unique event types for the filter
   const uniqueEventTypes = [...new Set(sortedEvents.map((e) => e.event_type))];
@@ -605,10 +626,21 @@ function generateSessionTimelineView(session) {
   return `
     <div class="timeline-filters">
       <label>Filter by event type:</label>
-      <select class="event-type-filter" onchange="filterTimelineEvents(this, '${session.sessionId}')">
-        <option value="all">All Events</option>
-        ${uniqueEventTypes.map((type) => `<option value="${type}">${type}</option>`).join("")}
-      </select>
+      <div class="event-type-checkboxes">
+        <div class="checkbox-item">
+          <input type="checkbox" id="all-events-${session.sessionId}" value="all" checked onchange="handleAllEventsToggle(this, '${session.sessionId}')">
+          <label for="all-events-${session.sessionId}">All Events</label>
+        </div>
+        ${uniqueEventTypes
+          .map(
+            (type) =>
+              `<div class="checkbox-item">
+            <input type="checkbox" id="event-${type}-${session.sessionId}" value="${type}" checked class="event-type-checkbox" onchange="filterTimelineEventsByCheckbox('${session.sessionId}')">
+            <label for="event-${type}-${session.sessionId}">${type}</label>
+          </div>`
+          )
+          .join("")}
+      </div>
     </div>
     
     <div class="timeline-info">
@@ -672,6 +704,8 @@ function generateSessionTimelineView(session) {
       <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.data}"></span> Data Actions</div>
       <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.movement}"></span> Movement</div>
       <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.gathering}"></span> Gathering/Crafting</div>
+      <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.treatment}"></span> Treatment Actions</div>
+      <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.giving}"></span> Giving Actions</div>
       <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.game}"></span> Other Game Actions</div>
     </div>
         
@@ -733,12 +767,12 @@ function generateSessionTimelineView(session) {
               }
 
               // Log the value we're using
-              console.log(`Event ${group.event_type} startTime:`, {
-                original: group.startTime,
-                type: typeof group.startTime,
-                isDate: group.startTime instanceof Date,
-                startTimeMs,
-              });
+              // console.log(`Event ${group.event_type} startTime:`, {
+              //   original: group.startTime,
+              //   type: typeof group.startTime,
+              //   isDate: group.startTime instanceof Date,
+              //   startTimeMs,
+              // });
 
               const sessionStartMs = sessionStart.getTime();
               const timeFromStart = startTimeMs - sessionStartMs;
@@ -940,6 +974,162 @@ function analyzeTimelineData(timelineData) {
   }
 
   return analysis;
+}
+
+/**
+ * Generate swim lane view for player activity timeline
+ */
+function generatePlayerSwimlanesView(sessions) {
+  if (!sessions || sessions.length === 0) {
+    return `<div class="info-box">No session data available for player swimlane view.</div>`;
+  }
+
+  // Group sessions by player; assuming each session has a playerId property
+  const sessionsByPlayer = {};
+  sessions.forEach((session) => {
+    const player = session.playerId || session.playerName || "Unknown Player";
+    if (!sessionsByPlayer[player]) {
+      sessionsByPlayer[player] = [];
+    }
+    sessionsByPlayer[player].push(session);
+  });
+
+  // Determine overall timeline start and end
+  let overallStart = null,
+    overallEnd = null;
+  sessions.forEach((session) => {
+    const start = new Date(session.startTime);
+    const end = new Date(session.endTime);
+    if (!overallStart || start < overallStart) overallStart = start;
+    if (!overallEnd || end > overallEnd) overallEnd = end;
+  });
+
+  if (!overallStart || !overallEnd) {
+    return `<div class="info-box">Unable to determine timeline range from session data.</div>`;
+  }
+
+  const overallDuration = overallEnd.getTime() - overallStart.getTime();
+
+  // Build HTML for swimlane container and time axis
+  let html = `<div class="swimlane-container">
+    <div class="swimlane-axis">
+      ${(() => {
+        let markers = [];
+        const numMarkers = 10;
+        for (let i = 0; i <= numMarkers; i++) {
+          const markerTime = new Date(
+            overallStart.getTime() + overallDuration * (i / numMarkers)
+          );
+          markers.push(`<div class="swimlane-time-marker" style="left:${(i / numMarkers) * 100}%">
+            <span>${markerTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+          </div>`);
+        }
+        return markers.join("");
+      })()}
+    </div>`;
+
+  // Iterate over each player's sessions
+  Object.keys(sessionsByPlayer).forEach((player) => {
+    html += `<div class="swimlane" data-player="${player}">
+      <div class="swimlane-label">${player}</div>
+      <div class="swimlane-sessions" style="position: relative;">`;
+
+    sessionsByPlayer[player].forEach((session) => {
+      const sessionStart = new Date(session.startTime);
+      const sessionEnd = new Date(session.endTime);
+      const sessionOffsetPercent =
+        ((sessionStart.getTime() - overallStart.getTime()) / overallDuration) *
+        100;
+      const sessionWidthPercent =
+        ((sessionEnd.getTime() - sessionStart.getTime()) / overallDuration) *
+        100;
+
+      html += `<div class="swimlane-session" style="position: absolute; left: ${sessionOffsetPercent}%; width: ${sessionWidthPercent}%; border: 1px solid #ccc;">`;
+
+      if (session.events && session.events.length > 0) {
+        // Sort events chronologically
+        const sortedEvents = [...session.events].sort(
+          (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+        );
+
+        // Group consecutive similar actions
+        const groupedEvents = [];
+        let currentGroup = {
+          event_type: sortedEvents[0].event_type,
+          startTime: new Date(sortedEvents[0].timestamp),
+          endTime: new Date(sortedEvents[0].timestamp),
+          count: 1,
+          events: [sortedEvents[0]],
+        };
+
+        for (let i = 1; i < sortedEvents.length; i++) {
+          const event = sortedEvents[i];
+          const eventTime = new Date(event.timestamp);
+
+          if (
+            event.event_type === currentGroup.event_type &&
+            eventTime - currentGroup.endTime < 10000
+          ) {
+            // within 10 sec
+            currentGroup.endTime = eventTime;
+            currentGroup.count++;
+            currentGroup.events.push(event);
+          } else {
+            groupedEvents.push(currentGroup);
+            currentGroup = {
+              event_type: event.event_type,
+              startTime: eventTime,
+              endTime: eventTime,
+              count: 1,
+              events: [event],
+            };
+          }
+        }
+        groupedEvents.push(currentGroup);
+
+        // Render events
+        const sessionDurationMs = sessionEnd.getTime() - sessionStart.getTime();
+        groupedEvents.forEach((group, index) => {
+          // Calculate position based on time
+          let startTimeMs;
+          try {
+            startTimeMs = group.startTime.getTime();
+          } catch (e) {
+            startTimeMs = new Date(group.startTime).getTime();
+          }
+
+          const sessionStartMs = sessionStart.getTime();
+          const timeFromStart = startTimeMs - sessionStartMs;
+
+          let positionPercent = 0;
+          if (
+            !isNaN(startTimeMs) &&
+            timeFromStart >= 0 &&
+            sessionDurationMs > 0
+          ) {
+            positionPercent = (timeFromStart / sessionDurationMs) * 100;
+            positionPercent = Math.max(0, Math.min(100, positionPercent));
+          } else {
+            positionPercent = (index / (groupedEvents.length - 1 || 1)) * 100;
+          }
+
+          const category = getEventCategory(group.event_type);
+          const color = categoryColors[category];
+
+          html += `<div class="swimlane-event" 
+                       style="position: absolute; left: ${positionPercent}%; width: 5px; height: 100%; background-color: ${color};" 
+                       title="${group.event_type} (${group.count})"></div>`;
+        });
+      }
+
+      html += `</div>`; // close swimlane-session
+    });
+
+    html += `</div></div>`; // close swimlane-sessions and swimlane
+  });
+
+  html += `</div>`; // close swimlane-container
+  return html;
 }
 
 /**
@@ -1373,6 +1563,41 @@ function generateHtmlReport(
         .tab-content.active {
           display: block;
         }
+        
+        /* Checkbox styles */
+        .event-type-checkboxes {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 5px;
+        }
+        
+        .checkbox-item {
+          display: flex;
+          align-items: center;
+          background-color: #f5f5f5;
+          border-radius: 4px;
+          padding: 2px 8px;
+          font-size: 12px;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+          margin-right: 4px;
+        }
+        
+        .checkbox-item label {
+          cursor: pointer;
+        }
+        
+        .checkbox-item:hover {
+          background-color: #e9e9e9;
+        }
+        
+        /* Tab styles */
+        .time-marker .marker-time {
+          font-size: 10px;
+          transform: translateX(-50%);
+        }
       </style>
       <script>
         // Tab switching functionality
@@ -1443,37 +1668,77 @@ function generateHtmlReport(
           });
         });
         
-        // Timeline event filtering
-        function filterTimelineEvents(selectElement, sessionId) {
-          const selectedType = selectElement.value;
+        // Timeline event filtering for checkboxes
+        function filterTimelineEventsByCheckbox(sessionId) {
           const timelineContainer = document.querySelector('.timeline-container[data-session-id="' + sessionId + '"]');
           const events = timelineContainer.querySelectorAll('.timeline-event');
+          const checkboxes = timelineContainer.querySelectorAll('.event-type-checkbox:checked');
+          const selectedTypes = Array.from(checkboxes).map(cb => cb.value);
+          const allEventsCheckbox = document.getElementById('all-events-' + sessionId);
           
           console.group('Timeline Filtering - Session ' + sessionId);
-          console.log('Filtering by type:', selectedType);
+          console.log('Filtering by types:', selectedTypes);
           console.log('Total events:', events.length);
+          
+          // Update "All Events" checkbox state without triggering the onchange event
+          const allChecked = checkboxes.length === timelineContainer.querySelectorAll('.event-type-checkbox').length;
+          if (allEventsCheckbox.checked !== allChecked) {
+            allEventsCheckbox.checked = allChecked;
+          }
           
           let visibleCount = 0;
           events.forEach(event => {
-            const eventType = event.className.split('event-type-')[1].split(' ')[0];
-            const position = event.getAttribute('data-position');
-            const timestamp = event.getAttribute('data-timestamp');
+            const eventTypeClass = Array.from(event.classList).find(cls => cls.startsWith('event-type-'));
+            const eventType = eventTypeClass ? eventTypeClass.replace('event-type-', '') : '';
             
-            const shouldShow = selectedType === 'all' || event.classList.contains('event-type-' + selectedType);
+            const shouldShow = selectedTypes.includes(eventType);
             event.style.display = shouldShow ? 'block' : 'none';
             
             if (shouldShow) visibleCount++;
-            
-            console.log({
-              eventType,
-              position,
-              timestamp,
-              visible: shouldShow
-            });
           });
           
           console.log('Visible events after filtering:', visibleCount);
           console.groupEnd();
+        }
+        
+        // Handle "All Events" checkbox toggle
+        function handleAllEventsToggle(checkbox, sessionId) {
+          const timelineContainer = document.querySelector('.timeline-container[data-session-id="' + sessionId + '"]');
+          const typeCheckboxes = timelineContainer.querySelectorAll('.event-type-checkbox');
+          
+          // Set all type checkboxes to match the "All Events" state
+          typeCheckboxes.forEach(cb => {
+            cb.checked = checkbox.checked;
+          });
+          
+          // Apply filtering
+          filterTimelineEventsByCheckbox(sessionId);
+        }
+        
+        // Legacy function for backward compatibility
+        function filterTimelineEvents(selectElement, sessionId) {
+          // This maintains compatibility with any existing code that might call this function
+          const selectedType = selectElement.value;
+          const timelineContainer = document.querySelector('.timeline-container[data-session-id="' + sessionId + '"]');
+          
+          // Check or uncheck the checkboxes to match the selected type
+          const typeCheckboxes = timelineContainer.querySelectorAll('.event-type-checkbox');
+          const allEventsCheckbox = document.getElementById('all-events-' + sessionId);
+          
+          if (selectedType === 'all') {
+            allEventsCheckbox.checked = true;
+            typeCheckboxes.forEach(cb => {
+              cb.checked = true;
+            });
+          } else {
+            allEventsCheckbox.checked = false;
+            typeCheckboxes.forEach(cb => {
+              cb.checked = cb.value === selectedType;
+            });
+          }
+          
+          // Apply filtering using the new function
+          filterTimelineEventsByCheckbox(sessionId);
         }
 
         // Debug timeline grid and positions
@@ -2147,6 +2412,141 @@ function generateHtmlReport(
           `
               : "<p>No significant social connections detected in this time period.</p>"
           }
+        </div>
+
+        <div class="section">
+          <h2>Player Activity Timeline</h2>
+          <p class="metric-explanation">Visual timeline of player activities across all sessions, with each player shown in a separate lane.</p>
+          <style>
+            .swimlane-container {
+              border: 1px solid #ddd;
+              border-radius: 5px;
+              margin-bottom: 20px;
+              background-color: white;
+              overflow: hidden;
+            }
+            .swimlane-axis {
+              height: 30px;
+              border-bottom: 1px solid #ddd;
+              position: relative;
+              background-color: #f8f9fa;
+            }
+            .swimlane-time-marker {
+              position: absolute;
+              transform: translateX(-50%);
+            }
+            .swimlane-time-marker span {
+              font-size: 10px;
+              color: #666;
+            }
+            .swimlane {
+              display: flex;
+              border-bottom: 1px solid #eee;
+            }
+            .swimlane:last-child {
+              border-bottom: none;
+            }
+            .swimlane-label {
+              width: 120px;
+              padding: 10px;
+              background-color: #f8f9fa;
+              border-right: 1px solid #ddd;
+              font-weight: 500;
+            }
+            .swimlane-sessions {
+              flex: 1;
+              height: 50px;
+              position: relative;
+              padding: 5px 0;
+            }
+            .swimlane-session {
+              background-color: rgba(0,0,0,0.05);
+              border-radius: 3px;
+            }
+            .swimlane-event {
+              border-radius: 2px;
+            }
+            .swimlane-legend {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 15px;
+              margin: 10px;
+              padding: 10px;
+              background-color: #f8f9fa;
+              border-radius: 4px;
+            }
+            .date-range-selector {
+              margin: 0 0 20px 0;
+              padding: 10px;
+              background-color: #f8f9fa;
+              border-radius: 4px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+            .date-range-selector input, .date-range-selector button {
+              padding: 5px 10px;
+              border: 1px solid #ddd;
+              border-radius: 4px;
+            }
+            .date-range-selector button {
+              background-color: #3498db;
+              color: white;
+              cursor: pointer;
+            }
+          </style>
+          
+          <div class="swimlane-legend">
+            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.data}"></span> Data Actions</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.movement}"></span> Movement</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.gathering}"></span> Gathering/Crafting</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.treatment}"></span> Treatment Actions</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.giving}"></span> Giving Actions</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.game}"></span> Other Game Actions</div>
+          </div>
+          
+          <div class="date-range-selector">
+            <label>Focus Date Range:</label>
+            <input type="date" id="swimlane-start-date" value="${options.startDate}">
+            <label>to</label>
+            <input type="date" id="swimlane-end-date" value="${options.endDate}">
+            <button onclick="alert('Date range filtering would be applied here.')">Update</button>
+          </div>
+          
+          ${(() => {
+            // Get all sessions from all players for the swimlanes
+            const allSessions = [];
+            sessionData.playerSessions.forEach((player) => {
+              if (player.sessions) {
+                player.sessions.forEach((session) => {
+                  allSessions.push({
+                    ...session,
+                    playerId: player.playerId,
+                    playerName: player.playerName,
+                  });
+                });
+              }
+            });
+
+            if (allSessions.length === 0) {
+              return '<div class="info-box">No session data available for player swimlane view.</div>';
+            }
+
+            return generatePlayerSwimlanesView(allSessions);
+          })()}
+          
+          <script>
+            // Add future interactivity for swimlane date range filtering
+            document.addEventListener('DOMContentLoaded', function() {
+              const startDateInput = document.getElementById('swimlane-start-date');
+              const endDateInput = document.getElementById('swimlane-end-date');
+              
+              if (startDateInput && endDateInput) {
+                // This would be expanded to actually filter the view
+                console.log('Swimlane date inputs initialized');
+              }
+            });
+          </script>
         </div>
       </div>
       

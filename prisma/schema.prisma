@@ -1229,7 +1229,7 @@ model treatment_actions {
   treatment_action_mood_effect       Decimal     @db.Decimal
   treatment_action_social_effect     Decimal     @db.Decimal
   treatment_action_cured             Boolean
-  treatment_action_room_id           Int
+  treatment_action_room_number       Int
   treatment_action_sickness_category String
   treatment_action_sickness_name     String
   world_id                           String?

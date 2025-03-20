@@ -824,6 +824,53 @@ async function fetchAllPlayerActivityEvents(prisma, whereConditions) {
     },
   }));
 
+  // Get treatment actions
+  const treatmentActions = await prisma.treatment_actions.findMany({
+    where: {
+      ...worldIdCondition,
+      ...playerIdCondition,
+      ...(startDate ? { treatment_action_time: { gte: startDate } } : {}),
+      ...(endDate ? { treatment_action_time: { lte: endDate } } : {}),
+    },
+    select: {
+      player_id: true,
+      treatment_action_time: true,
+      treatment_action_health_effect: true,
+      treatment_action_mood_effect: true,
+      treatment_action_social_effect: true,
+      treatment_action_cured: true,
+      treatment_action_sickness_category: true,
+      treatment_action_sickness_name: true,
+      treatment_action_room_number: true,
+      creature_id: true,
+      item_id: true,
+      players: {
+        select: {
+          player_name: true,
+        },
+      },
+    },
+  });
+
+  // Map treatment actions to common format
+  const treatmentEvents = treatmentActions.map((action) => ({
+    player_id: action.player_id,
+    timestamp: action.treatment_action_time,
+    player_name: action.players?.player_name || "Unknown",
+    event_type: "treatment",
+    details: {
+      health_effect: action.treatment_action_health_effect,
+      mood_effect: action.treatment_action_mood_effect,
+      social_effect: action.treatment_action_social_effect,
+      cured: action.treatment_action_cured,
+      sickness_category: action.treatment_action_sickness_category,
+      sickness_name: action.treatment_action_sickness_name,
+      room_number: action.treatment_action_room_number,
+      creature_id: action.creature_id,
+      item_id: action.item_id,
+    },
+  }));
+
   // Combine all events and sort by timestamp
   const allEvents = [
     ...locationEvents,
@@ -833,6 +880,7 @@ async function fetchAllPlayerActivityEvents(prisma, whereConditions) {
     ...patchEvents,
     ...inventoryEvents,
     ...dataEvents,
+    ...treatmentEvents,
   ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
   return allEvents;
