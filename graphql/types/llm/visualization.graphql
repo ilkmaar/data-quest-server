@@ -1,0 +1,78 @@
+# GraphQL schema for LLM visualization helpers
+
+# Visualization type suggestion response
+type VisualizationSuggestion {
+  question: String!
+  visualizationType: String!
+  dataSource: String!
+  dataRequirements: [String!]!
+  suggestedTitle: String!
+  suggestedDescription: String!
+}
+
+# Data source listing for API endpoints
+type ApiDataSource {
+  name: String!
+  endpoints: [ApiEndpoint!]!
+}
+
+# API endpoint description
+type ApiEndpoint {
+  name: String!
+  description: String!
+}
+
+# Data source listing for database tables
+type DatabaseDataSource {
+  name: String!
+  tables: [DatabaseTable!]!
+}
+
+# Database table description
+type DatabaseTable {
+  name: String!
+  description: String!
+}
+
+# Combined listing of all data sources
+type VisualizationDataSourceListing {
+  name: String!
+  endpoints: [ApiEndpoint!]
+  tables: [DatabaseTable!]
+}
+
+# Response for visualization data from any source
+type VisualizationDataResponse {
+  source: String!
+  endpoint: String
+  query: String
+  data: JSON!
+}
+
+# Schema for visualization data requirements
+input VisualizationDataParams {
+  worldId: String
+  playerId: String
+  creatureId: String
+  startDate: String
+  endDate: String
+  limit: Int
+  offset: Int
+  filters: JSON
+}
+
+# Extend the Query type with visualization-related resolvers
+extend type Query {
+  # Get a recommended visualization for a research question
+  suggestVisualization(question: String!): VisualizationSuggestion!
+  
+  # Get data for a visualization, selecting the best source based on the question
+  visualizationData(
+    question: String!
+    visualizationType: String
+    params: VisualizationDataParams
+  ): VisualizationDataResponse!
+  
+  # Get available data sources for visualizations
+  visualizationDataSources: [VisualizationDataSourceListing!]!
+}

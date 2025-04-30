@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "node ./index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "generate-report": "node scripts/generateGameAnalyticsReport.js --"
+    "generate-report": "node scripts/generateGameAnalyticsReport.js --",
+    "query-api": "node scripts/queryAPI.js",
+    "query-data-actions": "node scripts/queryDataActions.js"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +25,8 @@
     "@types/node": "^18.0.6",
     "apollo-server-express": "^3.13.0",
     "axios": "^1.6.0",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
     "commander": "^11.1.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
