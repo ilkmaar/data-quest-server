@@ -1,0 +1,7 @@
+type Query {
+  # islandHealth(worldId: ID!): [IslandHealth!]!
+  # creatureLocations(worldId: ID!, limit: Int): [CreatureLocation!]!
+  # playerLocations(worldId: ID!, limit: Int): [PlayerLocation!]!
+  # inventoryContents(playerId: ID!): InventoryContents!
+  # worldResourceInventory(worldId: ID!): [ResourceItem!]!
+}

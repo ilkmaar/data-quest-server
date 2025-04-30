@@ -2,7 +2,7 @@ import { createClient } from "../db/supabase.js";
 
 export const authRoutes = (app) => {
   app.post("/auth/callback", async (req, res) => {
-
+    console.log("Received callback request:", req.body);
     const { code, codeVerifier } = req.body;
 
     if (!code) {
@@ -31,6 +31,20 @@ export const authRoutes = (app) => {
         .status(500)
         .json({ error: "Unexpected error during session exchange" });
     }
+  });
+
+  app.post("/auth/login", async (req, res) => {
+    const supabase = createClient({ req, res });
+    const { email, password } = req.body;
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      console.error("Error logging out:", error);
+      return res.status(500).send("Error logging out");
+    }
+    res.json({ success: true });
   });
 
   app.post("/auth/logout", async (req, res) => {

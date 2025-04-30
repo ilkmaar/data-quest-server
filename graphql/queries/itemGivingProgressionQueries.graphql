@@ -1,0 +1,69 @@
+type Query {
+  factionItemCategoryProgress(playerId: String!): FactionItemProgress!
+  creatureTypeItemCategoryProgress(playerId: String!): CreatureTypeItemProgress!
+  factionItemVarietyProgress(playerId: String!): [VarietyGiftingProgress!]!
+  creatureTypeItemTypeProgress(playerId: String!): GiftingMatrix!
+  factionFoodCategoryGrid(playerId: String!): [[Int!]!]!
+}
+
+type GiftingMatrix {
+  recipientId: String!
+  recipientName: String!
+  categories: [GiftingCategory!]!
+}
+
+type GiftingCategory {
+  categoryId: String!
+  categoryName: String!
+  given: Boolean!
+  totalGiven: Int!
+  averageHappiness: Float!
+  bestQuality: Int!
+}
+
+type FactionItemProgress {
+  progressMatrix: [GiftingMatrix!]!
+  completion: Float!
+  totalUniqueCombinations: Int!
+  completedCombinations: Int!
+  averageHappinessScore: Float!
+  bestRecipients: [TopRecipient!]!
+}
+
+type CreatureTypeItemProgress {
+  progressMatrix: [GiftingMatrix!]!
+  completion: Float!
+  mostEffectiveCombinations: [EffectiveCombination!]!
+  leastEffectiveCombinations: [EffectiveCombination!]!
+}
+
+type TopRecipient {
+  recipientId: String!
+  recipientName: String!
+  averageHappiness: Float!
+  totalGiftsReceived: Int!
+}
+
+type EffectiveCombination {
+  creatureTypeId: String!
+  creatureTypeName: String!
+  categoryId: String!
+  categoryName: String!
+  averageHappiness: Float!
+  totalGiven: Int!
+}
+
+type VarietyGiftingProgress {
+  factionId: String!
+  factionName: String!
+  varieties: [VarietyGiftingStatus!]!
+}
+
+type VarietyGiftingStatus {
+  varietyId: String!
+  varietyName: String!
+  given: Boolean!
+  totalGiven: Int!
+  bestQualityGiven: Int!
+  averageResponse: Float!
+}

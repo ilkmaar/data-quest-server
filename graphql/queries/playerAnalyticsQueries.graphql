@@ -1,0 +1,128 @@
+extend type Query {
+  # Get player session analytics for a specific world
+  playerSessionAnalytics(
+    worldId: String!
+    startDate: String
+    endDate: String
+    playerId: String
+  ): PlayerSessionAnalytics!
+
+  # Get player activity timeline showing which players were active during each session
+  playerActivityTimeline(
+    worldId: String!
+    startDate: String
+    endDate: String
+    sessionIntervalMinutes: Int
+  ): PlayerActivityTimelineResponse!
+}
+
+# Response type for player session analytics
+type PlayerSessionAnalytics {
+  # Overall statistics
+  totalPlayers: Int!
+  totalSessions: Int!
+  averageSessionLength: Float! # in minutes
+  # Detailed player session data
+  playerSessions: [PlayerSessionData!]!
+
+  # Time distribution data
+  sessionLengthDistribution: [SessionDistribution!]!
+  sessionsByDay: [SessionsByDay!]!
+  sessionsByHour: [SessionsByHour!]!
+}
+
+# Response type for player activity timeline
+type PlayerActivityTimelineResponse {
+  # Overall statistics
+  totalPlayers: Int!
+  totalTimePeriods: Int!
+
+  # Timeline of activity periods
+  activityPeriods: [ActivityPeriod!]!
+
+  # Player summary data
+  playerSummaries: [PlayerActivitySummary!]!
+
+  # Co-presence data
+  playerCopresence: [PlayerCopresence!]!
+}
+
+# Activity period showing which players were active during a specific time window
+type ActivityPeriod {
+  periodId: String!
+  startTime: String!
+  endTime: String!
+  activePlayers: [ActivePlayer!]!
+  totalActivePlayers: Int!
+}
+
+# Player active during a specific period
+type ActivePlayer {
+  playerId: String!
+  playerName: String!
+  eventCount: Int!
+  areas: [String!]!
+}
+
+# Summary of a player's activity across all periods
+type PlayerActivitySummary {
+  playerId: String!
+  playerName: String!
+  totalActivePeriods: Int!
+  activePeriodsPercentage: Float!
+  mostActiveTimeOfDay: String!
+  mostActiveDay: String!
+}
+
+# Co-presence data between pairs of players
+type PlayerCopresence {
+  player1Id: String!
+  player1Name: String!
+  player2Id: String!
+  player2Name: String!
+  periodsTogetherCount: Int!
+  copresencePercentage: Float!
+}
+
+# Data for individual player sessions
+type PlayerSessionData {
+  playerId: String!
+  playerName: String!
+  totalSessions: Int!
+  averageSessionLength: Float! # in minutes
+  totalPlayTime: Float! # in minutes
+  firstSession: String! # ISO date string
+  lastSession: String! # ISO date string
+  sessions: [Session!]!
+}
+
+# Individual session information
+type Session {
+  sessionId: String!
+  startTime: String!
+  endTime: String!
+  duration: Float! # in minutes
+  eventCount: Int!
+  areas: [String!]!
+}
+
+# Distribution of session lengths
+type SessionDistribution {
+  durationRange: String! # e.g., "0-15 min", "15-30 min"
+  sessionCount: Int!
+  percentage: Float!
+}
+
+# Sessions grouped by day of week
+type SessionsByDay {
+  day: String! # Monday, Tuesday, etc.
+  sessionCount: Int!
+  averageDuration: Float! # in minutes
+}
+
+# Sessions grouped by hour of day
+type SessionsByHour {
+  hour: Int! # 0-23
+  sessionCount: Int!
+  averageDuration: Float! # in minutes
+}

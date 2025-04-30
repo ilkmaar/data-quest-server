@@ -1,0 +1,70 @@
+type Query {
+  # A table of patient (creature) records, including their sickness status, faction, and stats
+  patientRecords(worldId: String!): [PatientRecord!]!
+
+  # Count of all patients successfully treated (cured) by the player
+  patientsCuredCount(playerId: String!): Int!
+
+  # Average time between patient arrival and cure (simulate "Average Wait Time")
+  averageWaitTime(playerId: String!): Float
+
+  # Log of players or visitors coming into the "clinic" (player_location_records)
+  visitorLog(worldId: String!): [VisitorEntry!]!
+
+  # Counts of each sickness type being treated over time (simulate a "Disease Frequency Table")
+  diseaseFrequency(worldId: String!): [DiseaseFrequencyEntry!]!
+
+  # Effects each potion had on creatures: from treatment_events joined with creatures and items
+  # Filters by playerId if provided, and by worldId if provided.
+  potionEffects(playerId: String, worldId: String): [PotionEffect!]!
+
+  # Potion crafting details: from crafting_actions joined with items (output), resources (ingredients)
+  # Filters by playerId if provided, and by worldId if provided.
+  potionCrafting(playerId: String, worldId: String): [PotionCrafting!]!
+}
+
+type PatientRecord {
+  creatureId: String!
+  creatureName: String!
+  factionName: String
+  creatureType: String
+  color: String
+  sickness: String
+  currentHealth: Float
+  lastUpdated: String
+}
+
+type VisitorEntry {
+  playerId: String!
+  playerName: String!
+  visitTime: String!
+  areaName: String!
+}
+
+type DiseaseFrequencyEntry {
+  sickness: String!
+  count: Int!
+}
+
+type PotionEffect {
+  treatmentEventId: String!
+  creatureId: String!
+  creatureName: String!
+  potionItemId: String!
+  potionItemName: String!
+  healthDelta: Float
+  moodDelta: Float
+  socialDelta: Float
+  treatmentTime: String!
+}
+
+type PotionCrafting {
+  craftingActionId: String!
+  playerId: String!
+  worldId: String!
+  craftingTime: String!
+  ingredient1Name: String
+  ingredient2Name: String
+  outputItemType: String
+  outputItemQuality: Int
+}

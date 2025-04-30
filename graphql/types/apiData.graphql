@@ -1,0 +1,216 @@
+# GraphQL schema for API data types
+# This file defines types for data fetched from the external Ilkmaar API
+
+type PlayerMoveEvent {
+  id: ID!
+  world_id: String!
+  player_id: String!
+  player_name: String
+  timestamp: String!
+  x_position: Float!
+  y_position: Float!
+  area_id: String
+  area_name: String
+  island_id: String
+  island_name: String
+}
+
+type PlayerMoveEventsResponse {
+  count: Int!
+  next: String
+  previous: String
+  results: [PlayerMoveEvent!]!
+}
+
+type CreatureInteraction {
+  id: ID!
+  world_id: String!
+  player_id: String!
+  player_name: String
+  creature_id: String!
+  creature_name: String
+  timestamp: String!
+  health_effect: Float!
+  mood_effect: Float!
+  social_effect: Float!
+  area_id: String
+  area_name: String
+}
+
+type CreatureInteractionsResponse {
+  count: Int!
+  next: String
+  previous: String
+  results: [CreatureInteraction!]!
+}
+
+type ForagingAction {
+  id: ID!
+  world_id: String!
+  player_id: String!
+  player_name: String
+  timestamp: String!
+  x_position: Float!
+  y_position: Float!
+  resource_id: String
+  resource_name: String
+  resource_type: String
+  resource_quality: Int
+  patch_id: String
+}
+
+type ForagingActionsResponse {
+  count: Int!
+  next: String
+  previous: String
+  results: [ForagingAction!]!
+}
+
+type GivingAction {
+  id: ID!
+  world_id: String!
+  player_id: String!
+  player_name: String
+  creature_id: String!
+  creature_name: String
+  timestamp: String!
+  x_position: Float!
+  y_position: Float!
+  item_id: String
+  item_name: String
+  item_type: String
+  item_quality: Int
+  health_effect: Float
+  mood_effect: Float
+  social_effect: Float
+}
+
+type GivingActionsResponse {
+  count: Int!
+  next: String
+  previous: String
+  results: [GivingAction!]!
+}
+
+type TreatmentAction {
+  id: ID!
+  world_id: String!
+  player_id: String!
+  player_name: String
+  creature_id: String!
+  creature_name: String
+  timestamp: String!
+  room_number: Int
+  sickness_category: String
+  sickness_name: String
+  item_id: String
+  item_name: String
+  health_effect: Float
+  mood_effect: Float
+  social_effect: Float
+  cured: Boolean
+}
+
+type TreatmentActionsResponse {
+  count: Int!
+  next: String
+  previous: String
+  results: [TreatmentAction!]!
+}
+
+type DataAction {
+  id: ID!
+  world_id: String!
+  player_id: String!
+  player_name: String
+  timestamp: String!
+  data_action_type: String!
+  data_table_name: String!
+  data_action_axis: String
+  data_action_variable: String
+  data_action_source: String
+  data_table_id: String
+}
+
+type DataActionsResponse {
+  count: Int!
+  next: String
+  previous: String
+  results: [DataAction!]!
+}
+
+# Generic API data response for dynamically fetched endpoints
+type GenericApiResponse {
+  count: Int
+  next: String
+  previous: String
+  results: [JSON!]
+}
+
+# Scalar for handling JSON data
+scalar JSON
+
+extend type Query {
+  # Player movement events
+  playerMoveEvents(
+    worldId: String
+    playerId: String
+    limit: Int
+    offset: Int
+  ): PlayerMoveEventsResponse!
+  
+  # Get all player movement events (handles pagination)
+  allPlayerMoveEvents(
+    worldId: String
+    playerId: String
+  ): [PlayerMoveEvent!]!
+  
+  # Creature interactions
+  creatureInteractions(
+    worldId: String
+    creatureId: String
+    limit: Int
+    offset: Int
+  ): CreatureInteractionsResponse!
+  
+  # Foraging actions
+  foragingActions(
+    worldId: String
+    playerId: String
+    limit: Int
+    offset: Int
+  ): ForagingActionsResponse!
+  
+  # Item giving actions
+  givingActions(
+    worldId: String
+    playerId: String
+    creatureId: String
+    limit: Int
+    offset: Int
+  ): GivingActionsResponse!
+  
+  # Treatment (clinic) actions
+  treatmentActions(
+    worldId: String
+    playerId: String
+    creatureId: String
+    limit: Int
+    offset: Int
+  ): TreatmentActionsResponse!
+  
+  # Data actions (database interactions)
+  dataActions(
+    worldId: String
+    playerId: String
+    dataActionType: String
+    limit: Int
+    offset: Int
+  ): DataActionsResponse!
+  
+  # Generic API data fetcher for any endpoint
+  apiData(
+    endpoint: String!
+    params: JSON
+  ): GenericApiResponse!
+}

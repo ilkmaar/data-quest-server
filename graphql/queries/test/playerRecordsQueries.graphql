@@ -1,0 +1,13 @@
+type Query {
+  # # Original queries
+  # foraging: [Foraging!]!
+  # crafting: [Crafting!]!
+  # giving: [Giving!]!
+  # treating: [Treating!]!
+  # tending: [Tending!]!
+  # transactions: [Transaction!]!
+  # creature_direction_actions: [CreatureDirection!]!
+  # data_actions: [DataAction!]!
+  # seatings: [DinerSeating!]!
+  # diner_reviews: [DinerReview!]!
+}

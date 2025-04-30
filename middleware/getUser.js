@@ -6,7 +6,7 @@ export const getUser = async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
-    console.log("No authorization token provided");
+    console.log("No authorization token in headers");
     req.user = null;
     return next();
   }

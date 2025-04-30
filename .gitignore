@@ -1,3 +1,7 @@
+reports/*
+
+.env
+
 # Logs
 logs
 *.log

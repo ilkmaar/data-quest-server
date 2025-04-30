@@ -1,0 +1,102 @@
+type Color implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  creatures: [Creature!]!
+}
+
+type CreatureType implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  creatures: [Creature!]!
+}
+
+type Faction implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  creatures: [Creature!]!
+}
+
+type ActivityType implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  areas: [Area!]!
+  activities: [CreatureActivity!]!
+}
+
+type Island implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  areas: [Area!]!
+  weather_records: [WeatherRecord!]!
+}
+
+type Area implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  position: Position
+  island: Island
+  activity_type: ActivityType
+  plots: [Plot!]!
+  activities: [CreatureActivity!]!
+  creature_direction_actions_from: [CreatureDirection!]!
+  creature_direction_actions_to: [CreatureDirection!]!
+  creature_state_records: [CreatureStats!]!
+  player_location_records: [PlayerLocation!]!
+}
+
+type Plot implements Entity {
+  id: ID!
+  patches: [Patch!]!
+  areas: Area
+}
+
+type Patch implements Entity {
+  id: ID!
+  plot: Plot
+  foraging: [Foraging!]!
+  treating: [Treating!]!
+  tending: [Tending!]!
+  health_records: [PatchHealth!]!
+}
+
+type ResourceVariety implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  types: [ResourceType!]!
+}
+
+type ResourceCategory implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  types: [ResourceType!]!
+}
+
+type ItemCategory implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  types: [ItemType!]!
+  varieties: [ItemVariety!]!
+}
+
+type ItemVariety implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  types: [ItemType!]!
+  category: ItemCategory
+}
+
+type ResourceType implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  category: ResourceCategory
+  variety: ResourceVariety
+  resources: [Resource!]!
+}
+
+type ItemType implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  category: ItemCategory
+  variety: ItemVariety
+  items: [Item!]!
+}

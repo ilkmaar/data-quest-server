@@ -1,0 +1,50 @@
+type ItemGiver {
+  rank: Int!
+  playerId: ID!
+  playerName: String!
+  itemsGiven: Int!
+}
+
+type ItemPreferenceTrend {
+  creatureType: String!
+  itemType: String!
+  totalGiven: Int!
+  averageEffect: Float!
+}
+
+type ItemGivingCompletionStatus {
+  completionMatrix: [ItemTypeCompletion!]!
+  overallCompletion: Float!
+}
+
+type ItemTypeCompletion {
+  itemTypeId: ID!
+  itemTypeName: String!
+  creatureTypeStatus: [CreatureTypeStatus!]!
+}
+
+type CreatureTypeStatus {
+  creatureTypeId: ID!
+  creatureTypeName: String!
+  given: Boolean!
+}
+
+type BestItemsForStats {
+  health: [BestItem!]!
+  mood: [BestItem!]!
+  social: [BestItem!]!
+}
+
+type BestItem {
+  itemId: ID!
+  itemName: String!
+  averageEffect: Float!
+}
+
+type CreatureGiftPreference {
+  itemId: ID!
+  itemName: String!
+  averageHealthEffect: Float!
+  averageMoodEffect: Float!
+  averageSocialEffect: Float!
+}

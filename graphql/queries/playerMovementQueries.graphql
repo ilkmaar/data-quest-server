@@ -1,0 +1,27 @@
+extend type Query {
+  # Get player movement events for a specific world
+  playerMovementEvents(
+    worldId: String!
+    startTime: String
+    endTime: String
+    limit: Int
+    offset: Int
+  ): PlayerMovementEventsResponse!
+}
+
+type PlayerMovementEventsResponse {
+  totalCount: Int!
+  events: [PlayerMovementEvent!]!
+}
+
+type PlayerMovementEvent {
+  id: ID!
+  playerId: String!
+  playerName: String!
+  x: Float!
+  y: Float!
+  areaId: String
+  areaName: String
+  timestamp: String!
+  gameTimeId: String
+}

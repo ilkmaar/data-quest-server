@@ -1,0 +1,101 @@
+scalar DateTime
+
+interface Entity {
+  id: ID!
+}
+
+interface NamedEntity implements Entity {
+  id: ID!
+  name: String!
+}
+
+interface Record {
+  id: ID!
+  time: GameTime
+}
+
+interface PlayerAction {
+  id: ID!
+  time: GameTime
+  location: Location
+  player: Player
+}
+
+interface CreatureAction {
+  id: ID!
+  time: GameTime
+  location: Location
+  creature: Creature
+}
+
+type TimeOfDay implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  game_times: [GameTime!]!
+}
+
+type Day implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  day_number: Int
+  game_times: [GameTime!]!
+  weather_records: [WeatherRecord!]!
+}
+
+type Season implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  game_times: [GameTime!]!
+}
+
+type GameTime {
+  id: ID!
+  game_time_number: String
+  day: String
+  day_name: String
+  time_of_day: String
+  season: String
+}
+
+interface Position {
+  x: Float
+  y: Float
+}
+
+type Location implements Position {
+  x: Float
+  y: Float
+  area: Area
+}
+
+interface Action {
+  id: ID!
+  time: GameTime
+  location: Location
+}
+
+type Energies {
+  growth: Float
+  shadow: Float
+  light: Float
+  stability: Float
+}
+
+type EnergyEffect {
+  growth_effect: Float
+  shadow_effect: Float
+  light_effect: Float
+  stability_effect: Float
+}
+
+type Stats {
+  health: Float
+  mood: Float
+  social: Float
+}
+
+type StatsEffect {
+  health_effect: Float
+  mood_effect: Float
+  social_effect: Float
+}

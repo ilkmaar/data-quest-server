@@ -1,0 +1,37 @@
+type Query {
+  playerForagingProgression(
+    playerId: String!
+    worldId: String!
+  ): PlayerForagingProgression!
+}
+
+scalar JSON
+
+type PlayerForagingProgression {
+  currentLevel: Int!
+  totalLevels: Int!
+  levels: [ForagingLevel!]!
+  details: ProgressData!
+}
+
+type ForagingLevel {
+  id: Int!
+  name: String!
+  description: String!
+  threshold: Int!
+  completed: Boolean!
+  progress: Float!
+}
+
+type ProgressData {
+  allResources: [String!]!
+  resourcesByCategory: JSON!
+  resourcesByVariety: JSON!
+  resourcesByType: JSON!
+  resourcesByIsland: JSON!
+
+  resourceQualities: JSON!
+  resourceCategoryQualities: JSON!
+  resourceVarietyQualities: JSON!
+  resourceTypeQualities: JSON!
+}

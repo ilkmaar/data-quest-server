@@ -1,0 +1,7 @@
+type Query {
+  creaturesNeedingHelp(threshold: Float!, worldId: ID!): [CreatureInNeed!]!
+  factionImbalanceDetector(
+    worldId: ID!
+    threshold: Float!
+  ): FactionImbalanceReport!
+}

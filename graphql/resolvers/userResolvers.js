@@ -3,21 +3,7 @@ import {
   UserInputError,
   ApolloError,
 } from "apollo-server-express";
-
-const handleErrors = async (fn) => {
-  try {
-    return await fn();
-  } catch (error) {
-    console.error("Error:", error);
-    throw new ApolloError("An error occurred while processing the request.");
-  }
-};
-
-const ensureAuthenticated = (userId) => {
-  if (!userId) {
-    throw new AuthenticationError("You must be logged in.");
-  }
-};
+import { ensureAuthenticated, handleErrors } from "./utils.js";
 
 const fetchSingleRecord = async (prismaMethod, query, errorMessage) => {
   const record = await prismaMethod(query);
@@ -62,37 +48,29 @@ const resolvers = {
                     }))
                   : [],
             };
-          }),
+          })
       );
     },
 
-    userPlayers: (_, __, { prisma, userId }) => {
+    userPlayers: (_, __, { prisma, userId, userEmail }) => {
       ensureAuthenticated(userId);
-
       return handleErrors(() =>
-        prisma.user_players
+        prisma.player_assignments
           .findMany({
-            where: { user_id: userId },
-            include: {
-              players: {
-                include: {
-                  worlds: true,
-                },
-              },
-            },
+            where: { account_email: userEmail },
           })
           .then((userPlayers) =>
             userPlayers.length > 0
               ? userPlayers.map((userPlayer) => ({
                   id: userPlayer.player_id,
-                  name: userPlayer.players.player_name,
+                  name: userPlayer.player_name,
                   world: {
-                    id: userPlayer.players.worlds.world_id,
-                    name: userPlayer.players.worlds.world_name,
+                    id: userPlayer.world_id,
+                    name: userPlayer.world_name,
                   },
                 }))
-              : [],
-          ),
+              : []
+          )
       );
     },
   },

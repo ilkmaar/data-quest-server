@@ -1,0 +1,58 @@
+type World implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  islands: [Island!]!
+}
+
+type Island implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  areas: [Area!]!
+}
+
+type Area implements NamedEntity & Entity {
+  id: ID!
+  name: String!
+  position: Position
+  island: Island!
+  patches: [Patch!]!
+}
+
+type Patch implements Entity {
+  id: ID!
+  plot: Plot
+  foraging: [Foraging!]!
+}
+
+type IslandHealth implements Record & Entity {
+  id: ID!
+  time: GameTime
+  island: Island
+  energies: Energies
+  averageHealth: Float!
+}
+
+type WeatherRecord implements Record & Entity {
+  id: ID!
+  time: GameTime
+  island: Island
+  sun_type: String
+  rain_type: String
+}
+
+type PatchHealth implements Record & Entity {
+  id: ID!
+  time: GameTime
+  patch: Patch
+  energies: Energies
+}
+
+type MapNote {
+  id: ID!
+  content: String!
+  position: Position!
+  level: String!
+  area_id: String!
+  player_id: String!
+  created_at: String!
+}
