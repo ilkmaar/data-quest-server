@@ -57,6 +57,7 @@ async function startServer() {
       path.join(__dirname, "./graphql/types/basic/*.graphql"),
       path.join(__dirname, "./graphql/types/computed/*.graphql"),
       path.join(__dirname, "./graphql/types/*.graphql"),
+      path.join(__dirname, "./graphql/types/llm/*.graphql"),
       path.join(__dirname, "./graphql/queries/*.graphql"),
     ],
     { loaders: [new GraphQLFileLoader()] }

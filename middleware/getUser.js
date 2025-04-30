@@ -11,15 +11,6 @@ export const getUser = async (req, res, next) => {
     return next();
   }
 
-  if (process.env.NODE_ENV === "development" && token == "test-user-123") {
-    req.user = {
-      id: "beecc9e6-a7f9-40d5-9d41-73d5b6d15059",
-      email: "lhardy@concord.org",
-      role: "researcher",
-    };
-    return next();
-  }
-
   try {
     const { data, error } = await supabase.auth.getUser(token);
     if (error) {

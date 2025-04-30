@@ -245,14 +245,14 @@ async function executeQuery(query, variables, token) {
       "Content-Type": "application/json",
     };
 
-    // Use the development bypass token if in development mode
-    if (process.env.NODE_ENV === "development") {
-      console.log("Using development authentication bypass");
-      headers["Authorization"] = "Bearer test-user-123";
-    } else if (token) {
+    // Use specified token or API key
+    if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     } else if (API_KEY) {
       headers["Authorization"] = `Bearer ${API_KEY}`;
+    } else {
+      console.log("Warning: No authorization token provided");
+      console.log("Set AUTH_TOKEN in your .env file for authenticated requests");
     }
 
     console.log(`Sending GraphQL request to: ${API_URL}`);
@@ -984,10 +984,10 @@ function generatePlayerSwimlanesView(sessions) {
     return `<div class="info-box">No session data available for player swimlane view.</div>`;
   }
 
-  // Group sessions by player; assuming each session has a playerId property
+  // Group sessions by player; using playerName instead of playerId
   const sessionsByPlayer = {};
   sessions.forEach((session) => {
-    const player = session.playerId || session.playerName || "Unknown Player";
+    const player = session.playerName || "Unknown Player";
     if (!sessionsByPlayer[player]) {
       sessionsByPlayer[player] = [];
     }
@@ -1011,7 +1011,7 @@ function generatePlayerSwimlanesView(sessions) {
   const overallDuration = overallEnd.getTime() - overallStart.getTime();
 
   // Build HTML for swimlane container and time axis
-  let html = `<div class="swimlane-container">
+  let html = `<div class="swimlane-container" id="swimlane-view">
     <div class="swimlane-axis">
       ${(() => {
         let markers = [];
@@ -1021,7 +1021,7 @@ function generatePlayerSwimlanesView(sessions) {
             overallStart.getTime() + overallDuration * (i / numMarkers)
           );
           markers.push(`<div class="swimlane-time-marker" style="left:${(i / numMarkers) * 100}%">
-            <span>${markerTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+            <span>${markerTime.toLocaleDateString([], { month: "short", day: "numeric" })} ${markerTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
           </div>`);
         }
         return markers.join("");
@@ -2475,6 +2475,17 @@ function generateHtmlReport(
               background-color: #f8f9fa;
               border-radius: 4px;
             }
+            .legend-item {
+              display: flex;
+              align-items: center;
+              gap: 5px;
+            }
+            .legend-color {
+              display: inline-block;
+              width: 15px;
+              height: 15px;
+              border-radius: 3px;
+            }
             .date-range-selector {
               margin: 0 0 20px 0;
               padding: 10px;
@@ -2497,12 +2508,12 @@ function generateHtmlReport(
           </style>
           
           <div class="swimlane-legend">
-            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.data}"></span> Data Actions</div>
-            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.movement}"></span> Movement</div>
-            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.gathering}"></span> Gathering/Crafting</div>
-            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.treatment}"></span> Treatment Actions</div>
-            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.giving}"></span> Giving Actions</div>
-            <div class="legend-item"><span class="legend-color" style="background-color: ${categoryColors.game}"></span> Other Game Actions</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: #9c27b0;"></span> Data Actions</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: #808080;"></span> Movement</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: #4caf50;"></span> Gathering/Crafting</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: #e91e63;"></span> Treatment Actions</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: #00bcd4;"></span> Giving Actions</div>
+            <div class="legend-item"><span class="legend-color" style="background-color: #ff9800;"></span> Other Game Actions</div>
           </div>
           
           <div class="date-range-selector">
@@ -2510,7 +2521,11 @@ function generateHtmlReport(
             <input type="date" id="swimlane-start-date" value="${options.startDate}">
             <label>to</label>
             <input type="date" id="swimlane-end-date" value="${options.endDate}">
-            <button onclick="alert('Date range filtering would be applied here.')">Update</button>
+            <label>Time:</label>
+            <input type="time" id="swimlane-start-time" value="00:00">
+            <label>to</label>
+            <input type="time" id="swimlane-end-time" value="23:59">
+            <button id="update-swimlane-range">Update View</button>
           </div>
           
           ${(() => {
@@ -2521,7 +2536,6 @@ function generateHtmlReport(
                 player.sessions.forEach((session) => {
                   allSessions.push({
                     ...session,
-                    playerId: player.playerId,
                     playerName: player.playerName,
                   });
                 });
@@ -2536,14 +2550,363 @@ function generateHtmlReport(
           })()}
           
           <script>
-            // Add future interactivity for swimlane date range filtering
+            // Define needed functions and variables in global scope for client-side with hardcoded colors
+            const categoryColors = {
+              data: "#9c27b0", // purple
+              movement: "#808080", // light grey
+              gathering: "#4caf50", // green
+              treatment: "#e91e63", // pink
+              giving: "#00bcd4", // cyan
+              game: "#ff9800" // orange
+            };
+            
+            function getEventCategory(eventType) {
+              if (!eventType) return "game";
+              const eventTypeLower = eventType.toLowerCase();
+              if (eventTypeLower.startsWith("data_")) return "data";
+              if (eventTypeLower === "movement" || eventTypeLower.startsWith("move_")) return "movement";
+              if (eventTypeLower.includes("treatment") || eventTypeLower.startsWith("treat_")) return "treatment";
+              if (eventTypeLower.includes("giving") || eventTypeLower.startsWith("give_")) return "giving";
+              if (
+                eventTypeLower.includes("craft") ||
+                eventTypeLower.includes("foraging") ||
+                eventTypeLower.includes("collect") ||
+                eventTypeLower.includes("harvest") ||
+                eventTypeLower.startsWith("gather_") ||
+                eventTypeLower.startsWith("craft_")
+              ) return "gathering";
+              return "game";
+            }
+            
+            // Debug function to check event categorization
+            function debugEventCategories(sessions) {
+              const eventTypes = new Set();
+              sessions.forEach(session => {
+                if (session.events) {
+                  session.events.forEach(event => {
+                    if (event.event_type) eventTypes.add(event.event_type);
+                  });
+                }
+              });
+              
+              console.log("Found event types:", Array.from(eventTypes));
+              
+              // Check categorization for each event type
+              const categorization = {};
+              eventTypes.forEach(type => {
+                const category = getEventCategory(type);
+                categorization[type] = {
+                  category: category,
+                  color: categoryColors[category]
+                };
+              });
+              
+              console.log("Event categorization:", categorization);
+            }
+            
+            // Define the generatePlayerSwimlanesView function in the frontend for dynamic updates
+            function generatePlayerSwimlanesView(sessions) {
+              // Debug event categories
+              debugEventCategories(sessions);
+            
+              if (!sessions || sessions.length === 0) {
+                return '<div id="swimlane-view" class="info-box">No session data available for player swimlane view.</div>';
+              }
+            
+              // Group sessions by player name
+              const sessionsByPlayer = {};
+              sessions.forEach((session) => {
+                const player = session.playerName || "Unknown Player";
+                if (!sessionsByPlayer[player]) {
+                  sessionsByPlayer[player] = [];
+                }
+                sessionsByPlayer[player].push(session);
+              });
+            
+              // Determine overall timeline start and end
+              let overallStart = null, overallEnd = null;
+              sessions.forEach((session) => {
+                const start = new Date(session.startTime);
+                const end = new Date(session.endTime);
+                if (!overallStart || start < overallStart) overallStart = start;
+                if (!overallEnd || end > overallEnd) overallEnd = end;
+              });
+            
+              if (!overallStart || !overallEnd) {
+                return '<div id="swimlane-view" class="info-box">Unable to determine timeline range from session data.</div>';
+              }
+            
+              const overallDuration = overallEnd.getTime() - overallStart.getTime();
+            
+              // Build HTML for swimlane container and time axis
+              let html = '<div class="swimlane-container" id="swimlane-view">' +
+                '<div class="swimlane-axis">';
+              
+              // Generate time markers
+              let markers = [];
+              const numMarkers = 10;
+              for (let i = 0; i <= numMarkers; i++) {
+                const markerTime = new Date(
+                  overallStart.getTime() + overallDuration * (i / numMarkers)
+                );
+                markers.push('<div class="swimlane-time-marker" style="left:' + (i / numMarkers) * 100 + '%">' +
+                  '<span>' + markerTime.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + 
+                  markerTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</span>' +
+                  '</div>');
+              }
+              html += markers.join('') + '</div>';
+            
+              // Iterate over each player's sessions
+              Object.keys(sessionsByPlayer).forEach((player) => {
+                html += '<div class="swimlane" data-player="' + player + '">' +
+                  '<div class="swimlane-label">' + player + '</div>' +
+                  '<div class="swimlane-sessions" style="position: relative;">';
+            
+                sessionsByPlayer[player].forEach((session) => {
+                  const sessionStart = new Date(session.startTime);
+                  const sessionEnd = new Date(session.endTime);
+                  const sessionOffsetPercent = ((sessionStart.getTime() - overallStart.getTime()) / overallDuration) * 100;
+                  const sessionWidthPercent = ((sessionEnd.getTime() - sessionStart.getTime()) / overallDuration) * 100;
+            
+                  html += '<div class="swimlane-session" style="position: absolute; left: ' + 
+                    sessionOffsetPercent + '%; width: ' + sessionWidthPercent + 
+                    '%; border: 1px solid #ccc;">';
+            
+                  if (session.events && session.events.length > 0) {
+                    // Sort events chronologically
+                    const sortedEvents = [...session.events].sort(
+                      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+                    );
+            
+                    // Group consecutive similar actions
+                    const groupedEvents = [];
+                    let currentGroup = {
+                      event_type: sortedEvents[0].event_type,
+                      startTime: new Date(sortedEvents[0].timestamp),
+                      endTime: new Date(sortedEvents[0].timestamp),
+                      count: 1,
+                      events: [sortedEvents[0]],
+                    };
+            
+                    for (let i = 1; i < sortedEvents.length; i++) {
+                      const event = sortedEvents[i];
+                      const eventTime = new Date(event.timestamp);
+            
+                      if (
+                        event.event_type === currentGroup.event_type &&
+                        eventTime - currentGroup.endTime < 10000
+                      ) { // within 10 sec
+                        currentGroup.endTime = eventTime;
+                        currentGroup.count++;
+                        currentGroup.events.push(event);
+                      } else {
+                        groupedEvents.push(currentGroup);
+                        currentGroup = {
+                          event_type: event.event_type,
+                          startTime: eventTime,
+                          endTime: eventTime,
+                          count: 1,
+                          events: [event],
+                        };
+                      }
+                    }
+                    groupedEvents.push(currentGroup);
+            
+                    // Render events
+                    const sessionDurationMs = sessionEnd.getTime() - sessionStart.getTime();
+                    groupedEvents.forEach((group, index) => {
+                      // Calculate position based on time
+                      let startTimeMs;
+                      try {
+                        startTimeMs = group.startTime.getTime();
+                      } catch (e) {
+                        startTimeMs = new Date(group.startTime).getTime();
+                      }
+            
+                      const sessionStartMs = sessionStart.getTime();
+                      const timeFromStart = startTimeMs - sessionStartMs;
+            
+                      let positionPercent = 0;
+                      if (
+                        !isNaN(startTimeMs) &&
+                        timeFromStart >= 0 &&
+                        sessionDurationMs > 0
+                      ) {
+                        positionPercent = (timeFromStart / sessionDurationMs) * 100;
+                        positionPercent = Math.max(0, Math.min(100, positionPercent));
+                      } else {
+                        positionPercent = (index / (groupedEvents.length - 1 || 1)) * 100;
+                      }
+                      
+                      // Get event category and color with debug info
+                      const eventType = group.event_type || "unknown";
+                      const category = getEventCategory(eventType);
+                      const color = categoryColors[category] || "#888888"; // Default gray if category not found
+                      
+                      // Log for debugging
+                      if (index === 0) {
+                        console.log("Event color example:", eventType, "→", category, "→", color);
+                      }
+            
+                      html += '<div class="swimlane-event" ' + 
+                        'style="position: absolute; left: ' + positionPercent + '%; width: 5px; height: 100%; background-color: ' + color + ';" ' + 
+                        'title="' + eventType + ' (' + group.count + ') - Category: ' + category + '">' +
+                        '</div>';
+                    });
+                  }
+            
+                  html += '</div>'; // close swimlane-session
+                });
+            
+                html += '</div></div>'; // close swimlane-sessions and swimlane
+              });
+            
+              html += '</div>'; // close swimlane-container
+              return html;
+            }
+            
+            // Add interactivity for swimlane date range filtering
             document.addEventListener('DOMContentLoaded', function() {
               const startDateInput = document.getElementById('swimlane-start-date');
               const endDateInput = document.getElementById('swimlane-end-date');
+              const startTimeInput = document.getElementById('swimlane-start-time');
+              const endTimeInput = document.getElementById('swimlane-end-time');
+              const updateButton = document.getElementById('update-swimlane-range');
               
-              if (startDateInput && endDateInput) {
-                // This would be expanded to actually filter the view
-                console.log('Swimlane date inputs initialized');
+              // Set initial time values if empty
+              if (!startTimeInput.value) startTimeInput.value = "00:00";
+              if (!endTimeInput.value) endTimeInput.value = "23:59";
+              
+              if (startDateInput && endDateInput && startTimeInput && endTimeInput && updateButton) {
+                // Store all session data for filtering
+                window.allSessionData = ${JSON.stringify(sessionData)};
+                
+                updateButton.addEventListener('click', function() {
+                  // Parse date inputs
+                  const startDate = new Date(startDateInput.value);
+                  const endDate = new Date(endDateInput.value);
+                  
+                  // Validate basic date range
+                  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                    alert('Please enter valid dates');
+                    return;
+                  }
+                  
+                  if (startDate > endDate) {
+                    alert('Start date must be before end date');
+                    return;
+                  }
+                  
+                  console.log("Time inputs:", startTimeInput.value, endTimeInput.value);
+                  
+                  // Parse time inputs
+                  const startTimeParts = startTimeInput.value.split(':');
+                  const endTimeParts = endTimeInput.value.split(':');
+                  
+                  const startHours = parseInt(startTimeParts[0] || 0, 10);
+                  const startMinutes = parseInt(startTimeParts[1] || 0, 10);
+                  const endHours = parseInt(endTimeParts[0] || 23, 10);
+                  const endMinutes = parseInt(endTimeParts[1] || 59, 10);
+                  
+                  console.log("Parsed time components:", 
+                    {startHours, startMinutes, endHours, endMinutes});
+                  
+                  // Set time components
+                  startDate.setHours(startHours, startMinutes, 0, 0);
+                  endDate.setHours(endHours, endMinutes, 59, 999);
+                  
+                  console.log("Final date range:", startDate, endDate);
+                  
+                  // Validate time range when on same day
+                  if (startDate.toDateString() === endDate.toDateString() && 
+                      startDate.getTime() > endDate.getTime()) {
+                    alert('When using the same day, start time must be before end time');
+                    return;
+                  }
+                  
+                  // Filter sessions by date/time range
+                  const filteredSessions = [];
+                  
+                  if (window.allSessionData && window.allSessionData.playerSessions) {
+                    window.allSessionData.playerSessions.forEach((player) => {
+                      if (player.sessions) {
+                        player.sessions.forEach((session) => {
+                          const sessionStart = new Date(session.startTime);
+                          const sessionEnd = new Date(session.endTime);
+                          
+                          // Include session if it overlaps with the selected date and time range
+                          if ((sessionStart <= endDate && sessionEnd >= startDate)) {
+                            filteredSessions.push({
+                              ...session,
+                              playerName: player.playerName
+                            });
+                          }
+                        });
+                      }
+                    });
+                  }
+                  
+                  console.log("Filtered " + filteredSessions.length + " sessions from " + 
+                    startDate.toLocaleString() + " to " + endDate.toLocaleString());
+                  
+                  // Remove existing swimlane view and any other response elements
+                  const container = document.querySelector('.swimlane-container');
+                  if (container && container.parentNode) {
+                      const parentContainer = container.parentNode;
+                      while (parentContainer.lastChild) {
+                          if (parentContainer.lastChild.id === 'swimlane-view' || 
+                              parentContainer.lastChild.className === 'info-box') {
+                              parentContainer.removeChild(parentContainer.lastChild);
+                          } else if (parentContainer.lastChild.tagName !== 'STYLE' &&
+                                     parentContainer.lastChild.className !== 'swimlane-legend' &&
+                                     parentContainer.lastChild.className !== 'date-range-selector') {
+                              break;
+                          } else {
+                              break;
+                          }
+                      }
+                      
+                      // Generate new swimlane view with filtered sessions
+                      if (filteredSessions.length === 0) {
+                        parentContainer.insertAdjacentHTML('beforeend', 
+                          '<div id="swimlane-view" class="info-box">No sessions found in the selected date/time range.</div>');
+                      } else {
+                        console.log("Creating swimlane with filtered sessions:", filteredSessions.length);
+                        const swimlaneHTML = generatePlayerSwimlanesView(filteredSessions);
+                        parentContainer.insertAdjacentHTML('beforeend', swimlaneHTML);
+                      }
+                  } else {
+                      console.error("Could not find swimlane container to update");
+                  }
+                });
+                
+                // Make time inputs also trigger filtering on Enter key
+                [startTimeInput, endTimeInput].forEach(input => {
+                  input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                      updateButton.click();
+                    }
+                  });
+                });
+                
+                // Initial debug to see what event types we have
+                setTimeout(() => {
+                    if (window.allSessionData && window.allSessionData.playerSessions) {
+                        const allEventTypes = new Set();
+                        window.allSessionData.playerSessions.forEach(player => {
+                            if (player.sessions) {
+                                player.sessions.forEach(session => {
+                                    if (session.events) {
+                                        session.events.forEach(event => {
+                                            if (event.event_type) allEventTypes.add(event.event_type);
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                        console.log("All event types in dataset:", Array.from(allEventTypes));
+                    }
+                }, 1000);
               }
             });
           </script>
